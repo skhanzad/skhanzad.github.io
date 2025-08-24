@@ -107,7 +107,7 @@ export default function Home() {
               isDark ? 'text-purple-300' : 'text-purple-600'
             }`}
           >
-            👋 Hello, I'm
+            👋 Hello, I&apos;m
           </motion.div>
           <motion.div
             className="flex justify-center mb-4"

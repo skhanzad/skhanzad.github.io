@@ -1,7 +1,7 @@
 "use client"
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
-import { CalendarIcon, MapPinIcon, ExternalLinkIcon, GithubIcon, Book, Table } from "lucide-react";
+import { CalendarIcon, MapPinIcon, ExternalLinkIcon, Book, Table } from "lucide-react";
 
 export default function WorkTimeline({ isDark }: { isDark: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);

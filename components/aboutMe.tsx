@@ -12,7 +12,6 @@ export default function AboutMe({ isDark }: { isDark: boolean }) {
   const y1 = useTransform(scrollYProgress, [0, 1], [0, -100]);
   const y2 = useTransform(scrollYProgress, [0, 1], [0, 100]);
   const y3 = useTransform(scrollYProgress, [0, 1], [0, -150]);
-  const opacity = useTransform(scrollYProgress, [0, 0.2, 0.8, 1], [0, 1, 1, 0]);
 
   return (
     <section 
@@ -109,7 +108,7 @@ export default function AboutMe({ isDark }: { isDark: boolean }) {
             <p className={`text-lg leading-relaxed ${
               isDark ? 'text-gray-300' : 'text-gray-700'
             }`}>
-              I'm a passionate AI researcher and full-stack developer with over 8 years of experience 
+              I&apos;m a passionate AI researcher and full-stack developer with over 8 years of experience 
               building intelligent systems that solve real-world problems. My journey began with a 
               fascination for how machines can learn and think like humans.
             </p>
@@ -125,7 +124,7 @@ export default function AboutMe({ isDark }: { isDark: boolean }) {
             <p className={`text-lg leading-relaxed ${
               isDark ? 'text-gray-300' : 'text-gray-700'
             }`}>
-              When I'm not coding or researching, you'll find me exploring new technologies, 
+              When I&apos;m not coding or researching, you&apos;ll find me exploring new technologies, 
               contributing to open-source projects, or sharing knowledge with the developer community.
             </p>
 
@@ -270,7 +269,7 @@ export default function AboutMe({ isDark }: { isDark: boolean }) {
                 : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg shadow-purple-500/25'
             }`}
           >
-            Let's Connect
+            Let&apos;s Connect
           </motion.a>
         </motion.div>
       </div>

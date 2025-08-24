@@ -1,7 +1,7 @@
 "use client"
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X, Github, Linkedin, Twitter, Mail } from "lucide-react";
+import { Menu, X, Github, Linkedin, Mail } from "lucide-react";
 
 interface NavProps {
   isDark?: boolean;

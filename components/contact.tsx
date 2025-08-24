@@ -1,7 +1,7 @@
 "use client"
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef, useState } from "react";
-import { Mail, Copy, Check, MessageCircle, Phone, MapPin, ExternalLink } from "lucide-react";
+import { Mail, Copy, Check, MessageCircle, Phone, ExternalLink } from "lucide-react";
 
 export default function Contact({ isDark }: { isDark: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -137,7 +137,7 @@ export default function Contact({ isDark }: { isDark: boolean }) {
           <p className={`text-lg max-w-2xl mx-auto ${
             isDark ? 'text-gray-300' : 'text-gray-600'
           }`}>
-            Ready to collaborate on something amazing? Let's connect and discuss how we can work together.
+            Ready to collaborate on something amazing? Let&apos;s connect and discuss how we can work together.
           </p>
           <div className={`w-24 h-1 mx-auto rounded-full mt-6 ${
             isDark ? 'bg-gradient-to-r from-blue-400 to-purple-400' : 'bg-gradient-to-r from-blue-500 to-purple-500'
@@ -236,13 +236,13 @@ export default function Contact({ isDark }: { isDark: boolean }) {
           <h3 className={`text-2xl font-bold mb-4 ${
             isDark ? 'text-white' : 'text-gray-900'
           }`}>
-            Let's Build Something Amazing Together
+            Let&apos;s Build Something Amazing Together
           </h3>
           <p className={`text-lg max-w-3xl mx-auto ${
             isDark ? 'text-gray-300' : 'text-gray-700'
           }`}>
-            Whether you're interested in AI research, blockchain development, or software engineering projects, 
-            I'm always excited to explore new opportunities and collaborations. Feel free to reach out!
+            Whether you&apos;re interested in AI research, blockchain development, or software engineering projects, 
+            I&apos;m always excited to explore new opportunities and collaborations. Feel free to reach out!
           </p>
         </motion.div>
 
