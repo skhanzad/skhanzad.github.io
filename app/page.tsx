@@ -4,6 +4,7 @@ import Footer from "@/components/footer";
 import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { SunIcon, MoonIcon, ArrowRightIcon, SparklesIcon } from "lucide-react";
+import ThreeHero from "@/components/threeHero";
 
 export default function Home() {
   const [isDark, setIsDark] = useState(false);
@@ -22,6 +23,7 @@ export default function Home() {
   return (
     <>
     <Nav isDark={isDark}/>
+    <ThreeHero/>
     <div className={`h-20 ${isDark ? 'bg-gradient-to-br from-black via-slate-900 to-black text-white' 
         : 'bg-gradient-to-br from-blue-50 via-white to-purple-50 text-gray-900'}`}/>
     <div className={`min-h-screen transition-colors duration-500 ${
@@ -102,7 +104,18 @@ export default function Home() {
           >
             👋 Hello, I'm
           </motion.div>
-
+          <motion.div
+            className="flex justify-center mb-4"
+            initial={{ opacity: 0, y: 20, scale: 0.8 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+          >
+            <img 
+              src="/me-cartoonify.png" 
+              alt="Sourena Khanzadeh" 
+              className="w-32 h-32 rounded-full"
+            />
+          </motion.div>
           {/* Name */}
           <motion.h1
             initial={{ opacity: 0, y: 30 }}
