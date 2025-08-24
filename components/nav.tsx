@@ -28,10 +28,9 @@ export default function Nav({ isDark = false }: NavProps) {
   ];
 
   const socialLinks = [
-    { icon: Github, href: "https://github.com/s2khanzad", label: "GitHub" },
-    { icon: Linkedin, href: "https://linkedin.com/in/sourena-khanzadeh", label: "LinkedIn" },
-    { icon: Twitter, href: "https://twitter.com/s2khanzad", label: "Twitter" },
-    { icon: Mail, href: "mailto:sourena@example.com", label: "Email" },
+    { icon: Github, href: "https://github.com/skhanzad", label: "GitHub" },
+    { icon: Linkedin, href: "https://linkedin.com/in/sourenak", label: "LinkedIn" },
+    { icon: Mail, href: "mailto:sourena.khanzadeh@gmail.com", label: "Email" },
   ];
 
   return (

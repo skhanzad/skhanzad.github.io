@@ -5,6 +5,11 @@ import { motion } from "framer-motion";
 import { useState, useEffect } from "react";
 import { SunIcon, MoonIcon, ArrowRightIcon, SparklesIcon } from "lucide-react";
 import ThreeHero from "@/components/threeHero";
+import AboutMe from "@/components/aboutMe";
+import WorkTimeline from "@/components/workTimeline";
+import Research from "@/components/research";
+import Contact from "@/components/contact";
+import ScrollToTop from "@/components/scrollToTop";
 
 export default function Home() {
   const [isDark, setIsDark] = useState(false);
@@ -167,7 +172,8 @@ export default function Home() {
             transition={{ duration: 0.8, delay: 0.8 }}
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <motion.button
+            <motion.a
+              href="#work"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className={`px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 ${
@@ -178,9 +184,10 @@ export default function Home() {
             >
               View My Work
               <ArrowRightIcon className="inline ml-2" size={20} />
-            </motion.button>
+            </motion.a>
             
-            <motion.button
+            <motion.a
+              href="#contact"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               className={`px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 ${
@@ -190,7 +197,7 @@ export default function Home() {
               }`}
             >
               Get In Touch
-            </motion.button>
+            </motion.a>
           </motion.div>
 
           {/* Stats */}
@@ -224,7 +231,23 @@ export default function Home() {
         </div>
       </main>
       </div>
+      
+      {/* About Me Section */}
+      <AboutMe isDark={isDark} />
+      
+      {/* Work Timeline Section */}
+      <WorkTimeline isDark={isDark} />
+      
+      {/* Research Section */}
+      <Research isDark={isDark} />
+      
+      {/* Contact Section */}
+      <Contact isDark={isDark} />
+      
       <Footer isDark={isDark}/>
+      
+      {/* Scroll to Top Button */}
+      <ScrollToTop isDark={isDark} />
     </>
   );
 }
