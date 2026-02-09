@@ -124,13 +124,7 @@ export default function WorkTimeline({ isDark }: { isDark: boolean }) {
       {/* Content */}
       <div className="relative z-10 max-w-6xl mx-auto px-6">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="text-center mb-16"
-        >
+        <div data-gsap="section-header" className="text-center mb-16">
           <h2 className={`text-4xl md:text-5xl font-bold mb-6 ${
             isDark ? 'text-white' : 'text-gray-900'
           }`}>
@@ -146,10 +140,10 @@ export default function WorkTimeline({ isDark }: { isDark: boolean }) {
           }`}>
             My professional journey in AI research and software development
           </p>
-          <div className={`w-24 h-1 mx-auto rounded-full mt-6 ${
+          <div data-gsap="section-underline" className={`w-24 h-1 mx-auto rounded-full mt-6 ${
             isDark ? 'bg-gradient-to-r from-blue-400 to-purple-400' : 'bg-gradient-to-r from-blue-500 to-purple-500'
           }`} />
-        </motion.div>
+        </div>
 
         {/* Timeline */}
         <div className="relative">
@@ -163,10 +157,8 @@ export default function WorkTimeline({ isDark }: { isDark: boolean }) {
             {workData.map((item, index) => (
               <motion.div
                 key={index}
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: index * 0.2 }}
-                viewport={{ once: true }}
+                data-gsap="timeline-item"
+                whileHover={{ scale: 1.01 }}
                 className={`relative flex flex-col md:flex-row gap-8 ${
                   index % 2 === 0 ? 'md:flex-row' : 'md:flex-row-reverse'
                 }`}

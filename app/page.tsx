@@ -10,6 +10,9 @@ import WorkTimeline from "@/components/workTimeline";
 import Research from "@/components/research";
 import Contact from "@/components/contact";
 import ScrollToTop from "@/components/scrollToTop";
+import GSAPScrollAnimations from "@/components/GSAPScrollAnimations";
+import VideoScrollSection from "@/components/VideoScrollSection";
+import AnimatedText from "@/components/AnimatedText";
 
 export default function Home() {
   const [isDark, setIsDark] = useState(false);
@@ -27,6 +30,7 @@ export default function Home() {
 
   return (
     <>
+    <GSAPScrollAnimations />
     <Nav isDark={isDark}/>
     <ThreeHero/>
     <div className={`h-20 ${isDark ? 'bg-gradient-to-br from-black via-slate-900 to-black text-white' 
@@ -99,16 +103,14 @@ export default function Home() {
         {/* Main Content */}
         <div className="relative z-10 text-center max-w-4xl mx-auto">
           {/* Greeting */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+          <div
             className={`text-lg font-medium mb-4 ${
               isDark ? 'text-purple-300' : 'text-purple-600'
             }`}
           >
-            👋 Hello, I&apos;m
-          </motion.div>
+            👋{" "}
+            <AnimatedText text="Hello, I'm" splitBy="chars" trigger="initial" />
+          </div>
           <motion.div
             className="flex justify-center mb-4"
             initial={{ opacity: 0, y: 20, scale: 0.8 }}
@@ -122,35 +124,28 @@ export default function Home() {
             />
           </motion.div>
           {/* Name */}
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
+          <h1
             className={`text-6xl md:text-7xl font-bold mb-6 ${
               isDark ? 'text-white' : 'text-gray-900'
             }`}
           >
-            Sourena{" "}
-            <span className={`bg-gradient-to-r ${
-              isDark 
-                ? 'from-purple-400 to-pink-400' 
-                : 'from-purple-600 to-pink-600'
-            } bg-clip-text text-transparent`}>
-              Khanzadeh
-            </span>
-          </motion.h1>
+            <AnimatedText
+              text="Sourena Khanzadeh"
+              splitBy="chars"
+              trigger="initial"
+              gradientClassName={isDark ? 'bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent' : 'bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent'}
+              gradientWordIndex={1}
+            />
+          </h1>
 
           {/* Title */}
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
+          <h2
             className={`text-2xl md:text-3xl font-medium mb-8 ${
               isDark ? 'text-gray-300' : 'text-gray-600'
             }`}
           >
-            AI Researcher & Full-Stack Developer
-          </motion.h2>
+            <AnimatedText text="Researcher" splitBy="chars" trigger="initial" />
+          </h2>
 
           {/* Description */}
           <motion.p
@@ -214,7 +209,7 @@ export default function Home() {
               { number: "100+", label: "Projects Completed" },
               { number: "5+", label: "Research Papers" }
             ].map((stat, index) => (
-              <div key={index} className="text-center">
+              <div key={index} className="text-center" data-gsap="stat-item">
                 <div className={`text-3xl font-bold mb-2 ${
                   isDark ? 'text-purple-400' : 'text-purple-600'
                 }`}>
@@ -231,6 +226,9 @@ export default function Home() {
         </div>
       </main>
       </div>
+
+      {/* Scroll-scrubbed video section */}
+      <VideoScrollSection isDark={isDark} />
       
       {/* About Me Section */}
       <AboutMe isDark={isDark} />

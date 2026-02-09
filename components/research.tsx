@@ -113,29 +113,28 @@ export default function Research({ isDark }: { isDark: boolean }) {
   return (
     <section 
       ref={containerRef}
-      className={`relative py-20 overflow-hidden ${
+      className={`relative py-12 sm:py-20 overflow-hidden ${
         isDark ? 'bg-gradient-to-b from-slate-900 to-black' : 'bg-gradient-to-b from-purple-50 to-blue-50'
       }`}
       id="research"
     >
-      {/* Animated Background Patterns */}
+      {/* Animated Background Patterns - hidden on small screens to avoid overlap */}
       <div className="absolute inset-0 overflow-hidden">
-        {/* Floating Elements */}
         <motion.div
           style={{ y: y1 }}
-          className={`absolute top-20 left-20 w-32 h-32 border-2 rounded-full ${
+          className={`absolute top-20 left-4 sm:left-20 w-24 h-24 sm:w-32 sm:h-32 border-2 rounded-full hidden sm:block ${
             isDark ? 'border-purple-500/20' : 'border-purple-400/20'
           }`}
         />
         <motion.div
           style={{ y: y2 }}
-          className={`absolute top-40 right-32 w-24 h-24 border-2 rotate-45 ${
+          className={`absolute top-40 right-4 sm:right-32 w-20 h-20 sm:w-24 sm:h-24 border-2 rotate-45 hidden sm:block ${
             isDark ? 'border-blue-500/20' : 'border-blue-400/20'
           }`}
         />
         <motion.div
           style={{ y: y3 }}
-          className={`absolute bottom-20 left-1/3 w-20 h-20 border-2 rounded-full ${
+          className={`absolute bottom-20 left-1/4 sm:left-1/3 w-16 h-16 sm:w-20 sm:h-20 border-2 rounded-full hidden sm:block ${
             isDark ? 'border-pink-500/20' : 'border-pink-400/20'
           }`}
         />
@@ -159,16 +158,10 @@ export default function Research({ isDark }: { isDark: boolean }) {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 max-w-7xl mx-auto px-6">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="text-center mb-16"
-        >
-          <h2 className={`text-4xl md:text-5xl font-bold mb-6 ${
+        <div data-gsap="section-header" className="text-center mb-10 sm:mb-16">
+          <h2 className={`text-3xl sm:text-4xl md:text-5xl font-bold mb-4 sm:mb-6 ${
             isDark ? 'text-white' : 'text-gray-900'
           }`}>
             Research &{" "}
@@ -178,41 +171,35 @@ export default function Research({ isDark }: { isDark: boolean }) {
               Publications
             </span>
           </h2>
-          <p className={`text-lg max-w-3xl mx-auto ${
+          <p className={`text-base sm:text-lg max-w-3xl mx-auto px-1 ${
             isDark ? 'text-gray-300' : 'text-gray-600'
           }`}>
             Exploring the frontiers of blockchain technology, artificial intelligence, and distributed systems
           </p>
-          <div className={`w-24 h-1 mx-auto rounded-full mt-6 ${
+          <div data-gsap="section-underline" className={`w-24 h-1 mx-auto rounded-full mt-4 sm:mt-6 ${
             isDark ? 'bg-gradient-to-r from-purple-400 to-pink-400' : 'bg-gradient-to-r from-purple-500 to-pink-500'
           }`} />
-        </motion.div>
+        </div>
 
         {/* Main Thesis Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          viewport={{ once: true }}
-          className="mb-20"
-        >
-          <div className={`p-8 rounded-3xl backdrop-blur-sm border shadow-2xl ${
+        <div data-gsap="research-focus-block" className="mb-12 sm:mb-20">
+          <div className={`p-4 sm:p-6 md:p-8 rounded-2xl sm:rounded-3xl backdrop-blur-sm border shadow-2xl ${
             isDark 
               ? 'bg-white/5 border-white/10' 
               : 'bg-white/70 border-gray-200'
           }`}>
-            <div className="text-center mb-8">
-              <div className={`inline-flex items-center justify-center w-20 h-20 rounded-full mb-6 ${
+            <div className="text-center mb-6 sm:mb-8">
+              <div className={`inline-flex items-center justify-center w-16 h-16 sm:w-20 sm:h-20 rounded-full mb-4 sm:mb-6 ${
                 isDark ? 'bg-purple-500/20' : 'bg-purple-100'
               }`}>
-                <BookOpen size={40} className={isDark ? 'text-purple-400' : 'text-purple-600'} />
+                <BookOpen size={32} className={`sm:w-10 sm:h-10 ${isDark ? 'text-purple-400' : 'text-purple-600'}`} />
               </div>
-              <h3 className={`text-3xl font-bold mb-4 ${
+              <h3 className={`text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 ${
                 isDark ? 'text-white' : 'text-gray-900'
               }`}>
                 Main Research Focus
               </h3>
-              <p className={`text-lg max-w-4xl mx-auto ${
+              <p className={`text-sm sm:text-base md:text-lg max-w-4xl mx-auto ${
                 isDark ? 'text-gray-300' : 'text-gray-700'
               }`}>
                 My research centers on developing innovative solutions at the intersection of blockchain technology, 
@@ -222,22 +209,19 @@ export default function Research({ isDark }: { isDark: boolean }) {
             </div>
 
             {/* Research Areas Grid */}
-            <div className="grid md:grid-cols-2 gap-6">
-              {researchAreas.map((area, index) => (
+            <div data-gsap="research-areas-group" className="grid sm:grid-cols-2 gap-4 sm:gap-6">
+              {researchAreas.map((area) => (
                 <motion.div
                   key={area.title}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 0.4 + index * 0.1 }}
-                  viewport={{ once: true }}
+                  data-gsap="research-area"
                   whileHover={{ scale: 1.02, y: -5 }}
-                  className={`p-6 rounded-2xl border transition-all duration-300 ${
+                  className={`p-4 sm:p-6 rounded-xl sm:rounded-2xl border transition-all duration-300 ${
                     isDark 
                       ? 'bg-white/5 border-white/10 hover:bg-white/10' 
                       : 'bg-white/50 border-gray-200 hover:bg-white/70'
                   }`}
                 >
-                  <div className={`inline-flex items-center justify-center w-12 h-12 rounded-lg mb-4 ${
+                  <div className={`inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-lg mb-3 sm:mb-4 ${
                     area.color === 'purple' ? (isDark ? 'bg-purple-500/20' : 'bg-purple-100') :
                     area.color === 'blue' ? (isDark ? 'bg-blue-500/20' : 'bg-blue-100') :
                     area.color === 'pink' ? (isDark ? 'bg-pink-500/20' : 'bg-pink-100') :
@@ -250,12 +234,12 @@ export default function Research({ isDark }: { isDark: boolean }) {
                       (isDark ? 'text-green-400' : 'text-green-600')
                     } />
                   </div>
-                  <h4 className={`text-xl font-semibold mb-3 ${
+                  <h4 className={`text-base sm:text-lg md:text-xl font-semibold mb-2 sm:mb-3 ${
                     isDark ? 'text-white' : 'text-gray-900'
                   }`}>
                     {area.title}
                   </h4>
-                  <p className={`text-sm ${
+                  <p className={`text-xs sm:text-sm ${
                     isDark ? 'text-gray-300' : 'text-gray-600'
                   }`}>
                     {area.description}
@@ -264,95 +248,88 @@ export default function Research({ isDark }: { isDark: boolean }) {
               ))}
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Publications Section */}
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          viewport={{ once: true }}
-          className="mb-16"
-        >
-          <div className="text-center mb-12">
-            <h3 className={`text-3xl font-bold mb-4 ${
+        <div className="mb-12 sm:mb-16">
+          <div data-gsap="subsection-header" className="text-center mb-8 sm:mb-12">
+            <h3 className={`text-2xl sm:text-3xl font-bold mb-3 sm:mb-4 ${
               isDark ? 'text-white' : 'text-gray-900'
             }`}>
               Publications
             </h3>
-            <p className={`text-lg ${
+            <p className={`text-sm sm:text-base md:text-lg ${
               isDark ? 'text-gray-300' : 'text-gray-600'
             }`}>
               {publications.length} research papers published in top-tier conferences and journals
             </p>
           </div>
 
-          {/* Publications Grid */}
-          <div className="space-y-8">
-            {publications.map((pub, index) => (
+          {/* Publications Grid - pub-card animated in GSAPScrollAnimations */}
+          <div className="space-y-6 sm:space-y-8">
+            {publications.map((pub) => (
               <motion.div
-                key={pub.doi}
-                initial={{ opacity: 0, y: 50 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.8, delay: 0.6 + index * 0.1 }}
-                viewport={{ once: true }}
+                key={pub.title}
+                data-gsap="pub-card"
                 whileHover={{ scale: 1.01, y: -2 }}
-                className={`p-8 rounded-2xl backdrop-blur-sm border shadow-lg transition-all duration-300 ${
+                className={`p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl backdrop-blur-sm border shadow-lg transition-all duration-300 ${
                   isDark 
                     ? 'bg-white/5 border-white/10 hover:bg-white/10' 
                     : 'bg-white/70 border-gray-200 hover:bg-white/90'
                 }`}
               >
-                <div className="flex flex-col lg:flex-row gap-6">
+                <div className="flex flex-col lg:flex-row gap-4 sm:gap-6">
                   {/* Main Content */}
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     {/* Title */}
-                    <h4 className={`text-xl font-bold mb-3 ${
+                    <h4 className={`text-base sm:text-lg md:text-xl font-bold mb-2 sm:mb-3 leading-snug ${
                       isDark ? 'text-white' : 'text-gray-900'
                     }`}>
                       {pub.title}
                     </h4>
 
                     {/* Authors */}
-                    <p className={`text-sm mb-3 ${
+                    <p className={`text-xs sm:text-sm mb-2 sm:mb-3 break-words ${
                       isDark ? 'text-purple-300' : 'text-purple-600'
                     }`}>
                       {pub.authors}
                     </p>
 
                     {/* Venue and Year */}
-                    <div className={`flex items-center gap-4 mb-4 text-sm ${
+                    <div className={`flex flex-wrap items-center gap-x-4 gap-y-1 mb-3 sm:mb-4 text-xs sm:text-sm ${
                       isDark ? 'text-gray-400' : 'text-gray-600'
                     }`}>
-                      <div className="flex items-center gap-2">
-                        <Globe size={16} />
-                        {pub.venue}
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Globe size={14} className="shrink-0 mt-0.5 sm:w-4 sm:h-4" />
+                        <span className="break-words">{pub.venue}</span>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Calendar size={16} />
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Calendar size={14} className="shrink-0 sm:w-4 sm:h-4" />
                         {pub.year}
                       </div>
                     </div>
 
-                    {/* Abstract */}
-                    <p className={`text-sm leading-relaxed mb-4 ${
+                    {/* Abstract - line clamp on mobile to keep cards scannable */}
+                    <p className={`text-xs sm:text-sm leading-relaxed mb-3 sm:mb-4 line-clamp-4 md:line-clamp-6 ${
                       isDark ? 'text-gray-300' : 'text-gray-700'
                     }`}>
                       {pub.abstract}
                     </p>
 
-                    {/* DOI */}
-                    <p className={`text-xs font-mono ${
-                      isDark ? 'text-gray-500' : 'text-gray-500'
-                    }`}>
-                      DOI: {pub.doi}
-                    </p>
+                    {/* DOI - smaller on mobile, hide if empty */}
+                    {pub.doi ? (
+                      <p className={`text-[10px] sm:text-xs font-mono truncate ${
+                        isDark ? 'text-gray-500' : 'text-gray-500'
+                      }`} title={pub.doi}>
+                        DOI: {pub.doi}
+                      </p>
+                    ) : null}
                   </div>
 
-                  {/* Sidebar */}
-                  <div className="lg:w-48 space-y-4">
+                  {/* Sidebar - stacks on mobile, fixed width on lg */}
+                  <div className="flex flex-row flex-wrap items-center gap-3 sm:flex-col sm:flex-nowrap lg:w-48 lg:flex-col lg:flex-nowrap lg:shrink-0 lg:space-y-4">
                     {/* Category Badge */}
-                    <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                    <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium shrink-0 ${
                       isDark 
                         ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30' 
                         : 'bg-purple-100 text-purple-700 border border-purple-200'
@@ -360,31 +337,17 @@ export default function Research({ isDark }: { isDark: boolean }) {
                       {pub.category}
                     </div>
 
-                    {/* Impact and Citations */}
-                    <div className="space-y-2">
-                      <div className={`text-center p-3 rounded-lg ${
+                    {/* Citations - inline on mobile */}
+                    <div className="flex items-center gap-3 sm:flex-col sm:gap-2 sm:w-full">
+                      <div className={`text-center px-3 py-2 sm:p-3 rounded-lg shrink-0 ${
                         isDark ? 'bg-white/5' : 'bg-gray-50'
                       }`}>
-                        {/* <div className={`text-lg font-bold ${
-                          isDark ? 'text-purple-400' : 'text-purple-600'
-                        }`}>
-                          {pub.impact}
-                        </div> */}
-                        <div className={`text-xs ${
-                          isDark ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                          Impact
-                        </div>
-                      </div>
-                      <div className={`text-center p-3 rounded-lg ${
-                        isDark ? 'bg-white/5' : 'bg-gray-50'
-                      }`}>
-                        <div className={`text-lg font-bold ${
+                        <div className={`text-sm sm:text-lg font-bold ${
                           isDark ? 'text-blue-400' : 'text-blue-600'
                         }`}>
                           {pub.citations}
                         </div>
-                        <div className={`text-xs ${
+                        <div className={`text-[10px] sm:text-xs ${
                           isDark ? 'text-gray-400' : 'text-gray-600'
                         }`}>
                           Citations
@@ -392,20 +355,20 @@ export default function Research({ isDark }: { isDark: boolean }) {
                       </div>
                     </div>
 
-                    {/* Read Paper Button */}
+                    {/* Read Paper Button - full width on mobile */}
                     <motion.a
                       href={pub.link}
                       target="_blank"
                       rel="noopener noreferrer"
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
-                      className={`block w-full text-center px-4 py-2 rounded-lg text-sm font-medium transition-all duration-300 ${
+                      className={`w-full sm:w-full text-center px-4 py-2.5 sm:py-2 rounded-lg text-sm font-medium transition-all duration-300 inline-flex items-center justify-center ${
                         isDark
                           ? 'bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 border border-purple-500/30'
                           : 'bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-200'
                       }`}
                     >
-                      <ExternalLink size={16} className="inline mr-2" />
+                      <ExternalLink size={16} className="shrink-0 mr-2" />
                       Read Paper
                     </motion.a>
                   </div>
@@ -413,17 +376,11 @@ export default function Research({ isDark }: { isDark: boolean }) {
               </motion.div>
             ))}
           </div>
-        </motion.div>
+        </div>
 
         {/* Call to Action */}
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.8 }}
-          viewport={{ once: true }}
-          className="text-center"
-        >
-          <p className={`text-lg mb-6 ${
+        <div data-gsap="research-cta" className="text-center px-2">
+          <p className={`text-base sm:text-lg mb-4 sm:mb-6 ${
             isDark ? 'text-gray-300' : 'text-gray-600'
           }`}>
             Interested in collaborating on research projects?
@@ -432,7 +389,7 @@ export default function Research({ isDark }: { isDark: boolean }) {
             href="#contact"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className={`px-8 py-4 rounded-full font-semibold text-lg transition-all duration-300 ${
+            className={`inline-block px-6 py-3 sm:px-8 sm:py-4 rounded-full font-semibold text-base sm:text-lg transition-all duration-300 ${
               isDark
                 ? 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg shadow-purple-500/25'
                 : 'bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white shadow-lg shadow-purple-500/25'
@@ -440,7 +397,7 @@ export default function Research({ isDark }: { isDark: boolean }) {
           >
             Get In Touch
           </motion.a>
-        </motion.div>
+        </div>
       </div>
     </section>
   );

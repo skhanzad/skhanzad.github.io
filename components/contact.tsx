@@ -117,13 +117,7 @@ export default function Contact({ isDark }: { isDark: boolean }) {
       {/* Content */}
       <div className="relative z-10 max-w-6xl mx-auto px-6">
         {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          viewport={{ once: true }}
-          className="text-center mb-16"
-        >
+        <div data-gsap="section-header" className="text-center mb-16">
           <h2 className={`text-4xl md:text-5xl font-bold mb-6 ${
             isDark ? 'text-white' : 'text-gray-900'
           }`}>
@@ -139,20 +133,17 @@ export default function Contact({ isDark }: { isDark: boolean }) {
           }`}>
             Ready to collaborate on something amazing? Let&apos;s connect and discuss how we can work together.
           </p>
-          <div className={`w-24 h-1 mx-auto rounded-full mt-6 ${
+          <div data-gsap="section-underline" className={`w-24 h-1 mx-auto rounded-full mt-6 ${
             isDark ? 'bg-gradient-to-r from-blue-400 to-purple-400' : 'bg-gradient-to-r from-blue-500 to-purple-500'
           }`} />
-        </motion.div>
+        </div>
 
         {/* Contact Cards */}
         <div className="grid md:grid-cols-3 gap-8 mb-16">
           {contactInfo.map((info, index) => (
             <motion.div
               key={info.title}
-              initial={{ opacity: 0, y: 50 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.2 + index * 0.1 }}
-              viewport={{ once: true }}
+              data-gsap="contact-card"
               whileHover={{ scale: 1.02, y: -5 }}
               className={`p-8 rounded-2xl backdrop-blur-sm border shadow-lg transition-all duration-300 ${
                 info.isPrimary 
