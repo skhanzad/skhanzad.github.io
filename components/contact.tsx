@@ -2,6 +2,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef, useState } from "react";
 import { Mail, Copy, Check, MessageCircle, Phone, ExternalLink } from "lucide-react";
+import ContactThreeBackdrop from "@/components/contactThree";
 
 export default function Contact({ isDark }: { isDark: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,8 +71,14 @@ export default function Contact({ isDark }: { isDark: boolean }) {
       }`}
       id="contact"
     >
+      <div
+        className="pointer-events-none absolute inset-y-0 left-0 z-0 w-[min(88vw,720px)] sm:w-[min(52vw,760px)] lg:w-[min(46%,820px)] [mask-image:linear-gradient(270deg,transparent,black_32%)] [-webkit-mask-image:linear-gradient(270deg,transparent,black_32%)]"
+        aria-hidden
+      >
+        <ContactThreeBackdrop isDark={isDark} />
+      </div>
       {/* Animated Background Patterns */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
         {/* Floating Elements */}
         <motion.div
           style={{ y: y1 }}
@@ -140,7 +147,7 @@ export default function Contact({ isDark }: { isDark: boolean }) {
 
         {/* Contact Cards */}
         <div className="grid md:grid-cols-3 gap-8 mb-16">
-          {contactInfo.map((info, index) => (
+          {contactInfo.map((info) => (
             <motion.div
               key={info.title}
               data-gsap="contact-card"

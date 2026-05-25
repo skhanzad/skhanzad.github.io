@@ -2,6 +2,7 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import { CalendarIcon, MapPinIcon, ExternalLinkIcon, Book, Table } from "lucide-react";
+import WorkTimelineThreeBackdrop from "@/components/workTimelineThree";
 
 export default function WorkTimeline({ isDark }: { isDark: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -17,16 +18,29 @@ export default function WorkTimeline({ isDark }: { isDark: boolean }) {
   const workData = [
     {
       year: "2023",
-      title: "Graduate Assistant/PhD Candidate",
+      title: "Graduate Assistant / PhD Candidate",
       company: "Toronto Metropolitan University",
       location: "Toronto, ON",
-      duration: "Jan 2023 - Present",
-      description: "I am a graduate assistant at Toronto Metropolitan University, where I am responsible for teaching and research. I am also a research assistant at the Toronto Institute for computer science research, where I am responsible for research and development.",
-      technologies: ["Python", "C/C++", "PyTorch", "Prolog", "SQL", "Docker", "Kubernetes", "React", "Node.js", "AWS", "Docker", "Kubernetes"],
+      duration: "Jan 2023 - May 2026",
+      description:
+        "Conducting doctoral research in artificial intelligence, software engineering, and blockchain-based systems while supporting undergraduate teaching, academic mentorship, and research development at Toronto Metropolitan University and the Toronto Institute for Computer Science Research.",
+      technologies: [
+        "Python",
+        "C/C++",
+        "PyTorch",
+        "Prolog",
+        "SQL",
+        "Docker",
+        "Kubernetes",
+        "React",
+        "Node.js",
+        "AWS"
+      ],
       achievements: [
-        "Published 5 research papers in top-tier AI conferences",
-        "Developed a blockchain based AI project",
-        "Taught 400+ students in the field of Computer Science and AI"
+        "Published 7 peer-reviewed research papers in AI, software engineering, blockchain, and intelligent systems.",
+        "Designed and developed AI-driven blockchain research prototypes focused on smart contract analysis, optimization, and automated reasoning.",
+        "Taught, mentored, and supported 400+ undergraduate students across Computer Science, Artificial Intelligence, and Software Engineering courses.",
+        "Collaborated with faculty researchers on experimental design, implementation, evaluation, and publication of academic research projects."
       ],
       links: [
         { name: "Company Website", url: "https://www.torontomu.ca/", icon: ExternalLinkIcon },
@@ -35,44 +49,68 @@ export default function WorkTimeline({ isDark }: { isDark: boolean }) {
         { name: "Research Paper (Solosphere)", url: "https://ieeexplore.ieee.org/abstract/document/10621683", icon: Book },
         { name: "Research Paper (GANsemble)", url: "https://assets.pubpub.org/gokuyo6b/PLATNICK-51716777406141.pdf", icon: Book },
         { name: "Research Paper (Agent Mesh)", url: "https://arxiv.org/abs/2507.19902", icon: Book },
-        { name: "Research Paper (OptiCode Pro)", url: "https://arxiv.org/abs/2305.07594", icon: Book },
+        { name: "Research Paper (OptiCode Pro)", url: "https://arxiv.org/abs/2305.07594", icon: Book }
       ]
     },
     {
-        year: "2024",
-        title: "AI Research Scientist Intern",
-        company: "National Research Council Canada (NRC)",
-        location: "Ottawa, ON",
-        duration: "Jan 2024 - Jan 2025",
-        description: "I was an AI research scientist intern at the National Research Council Canada, where I was responsible for research and development.",
-        technologies: ["Python", "PyTorch", "LLM", "RAG", "LangChain", "OpenAI", "Knowledge Infusion", "Auxiliary Knowledge Infusion"],
-        achievements: [
-            "Surveyed the literature on the topic of AI in the field of Knowledge Infusion",
-            "Developed a prototype of a Knowledge Infusion system",
-            "Presented a prototype of Auxiliary Knowledge Infusion system"
-        ],
-        links: [
-            { name: "Company Website", url: "https://www.nrc.ca/", icon: ExternalLinkIcon },
-            { name: "Research Paper", url: "https://link.springer.com/article/10.1007/s10207-025-00987-4", icon: Book }
-        ]
+      year: "2024",
+      title: "AI Research Scientist Intern",
+      company: "National Research Council Canada (NRC)",
+      location: "Ottawa, ON",
+      duration: "Jan 2024 - Jan 2025",
+      description:
+        "Performed applied AI research focused on knowledge infusion, retrieval-augmented generation, and large language model enhancement, contributing to prototype development, literature analysis, and technical experimentation within a national research environment.",
+      technologies: [
+        "Python",
+        "PyTorch",
+        "LLMs",
+        "RAG",
+        "LangChain",
+        "OpenAI API",
+        "Knowledge Infusion",
+        "Auxiliary Knowledge Infusion"
+      ],
+      achievements: [
+        "Conducted a comprehensive literature review on knowledge infusion techniques for improving AI reasoning, reliability, and domain adaptation.",
+        "Developed a prototype knowledge infusion system integrating external domain knowledge into AI workflows.",
+        "Designed and presented an Auxiliary Knowledge Infusion prototype to demonstrate enhanced model reasoning and contextual grounding.",
+        "Contributed to research experimentation, technical documentation, and academic publication efforts."
+      ],
+      links: [
+        { name: "Company Website", url: "https://www.nrc.ca/", icon: ExternalLinkIcon },
+        { name: "Research Paper", url: "https://link.springer.com/article/10.1007/s10207-025-00987-4", icon: Book }
+      ]
     },
     {
-        year:"2022",
-        title: "Software Engineer",
-        company: "NTN Bearing Corporation",
-        location: "Toronto, ON",
-        duration: "Apr 2022 - Jan 2023",
-        description: "I was a software engineer at NTN Bearing Corporation, where I was responsible for developing software for the company.",
-        technologies: ["Firebase", "Docker", "Angular", "Node.js", "Git", "CI/CD", "Agile", "Scrum"],
-        achievements: [
-            "Developed a loyalty program for the company",
-            "Developed a software for the company",
-        ],
-        links: [
-            { name: "Company Website", url: "https://www.ntn.ca/", icon: ExternalLinkIcon },
-        ]
+      year: "2022",
+      title: "Software Engineer",
+      company: "Mitacs Project / NTN Bearing Corporation",
+      location: "Toronto, ON",
+      duration: "Apr 2022 - Jan 2023",
+      description:
+        "Developed full-stack software solutions for an industry-partnered Mitacs project with NTN Bearing Corporation, focusing on scalable application development, cloud-backed services, and user-facing business workflows.",
+      technologies: [
+        "Firebase",
+        "Docker",
+        "Angular",
+        "Node.js",
+        "Git",
+        "CI/CD",
+        "Agile",
+        "Scrum"
+      ],
+      achievements: [
+        "Built a customer loyalty program platform to support user engagement, rewards tracking, and business process automation.",
+        "Developed and maintained full-stack application features using Angular, Node.js, and Firebase.",
+        "Containerized development workflows with Docker to improve deployment consistency and environment reproducibility.",
+        "Collaborated in an Agile/Scrum environment using Git-based version control and CI/CD practices."
+      ],
+      links: [
+        { name: "Company Website", url: "https://www.ntn.ca/", icon: ExternalLinkIcon }
+      ]
     }
   ];
+
 
   return (
     <section 
@@ -82,8 +120,14 @@ export default function WorkTimeline({ isDark }: { isDark: boolean }) {
       }`}
       id="work"
     >
+      <div
+        className="pointer-events-none absolute inset-y-0 left-0 z-0 w-[min(88vw,720px)] sm:w-[min(52vw,760px)] lg:w-[min(46%,820px)] [mask-image:linear-gradient(270deg,transparent,black_32%)] [-webkit-mask-image:linear-gradient(270deg,transparent,black_32%)]"
+        aria-hidden
+      >
+        <WorkTimelineThreeBackdrop isDark={isDark} />
+      </div>
       {/* Animated Background Patterns */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
         {/* Floating Elements */}
         <motion.div
           style={{ y: y1 }}

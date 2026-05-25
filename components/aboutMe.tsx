@@ -2,6 +2,7 @@
 import { motion } from "framer-motion";
 import { useRef } from "react";
 import AnimatedText from "@/components/AnimatedText";
+import AboutMeThreeBackdrop from "@/components/aboutMeThree";
 
 export default function AboutMe({ isDark }: { isDark: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -14,8 +15,14 @@ export default function AboutMe({ isDark }: { isDark: boolean }) {
       }`}
       id="about"
     >
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[min(88vw,720px)] sm:w-[min(52vw,760px)] lg:w-[min(46%,820px)] [mask-image:linear-gradient(90deg,transparent,black_32%)] [-webkit-mask-image:linear-gradient(90deg,transparent,black_32%)]"
+        aria-hidden
+      >
+        <AboutMeThreeBackdrop isDark={isDark} />
+      </div>
       {/* Animated Background Patterns */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
         {/* Floating Geometric Shapes */}
         <div
           data-gsap="parallax-shape"

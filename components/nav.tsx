@@ -21,10 +21,10 @@ export default function Nav({ isDark = false }: NavProps) {
   }, []);
 
   const navItems = [
-    { name: "About", href: "#about" },
-    { name: "Work", href: "#work" },
-    { name: "Research", href: "#research" },
-    { name: "Contact", href: "#contact" },
+    { name: "About", href: "/#about" },
+    { name: "Work", href: "/#work" },
+    { name: "Research", href: "/#research" },
+    { name: "Contact", href: "/#contact" },
   ];
 
   const socialLinks = [

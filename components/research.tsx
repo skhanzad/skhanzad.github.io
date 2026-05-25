@@ -1,10 +1,54 @@
 "use client"
 import { motion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useState, useEffect } from "react";
 import { BookOpen, FileText, Award, ExternalLink, Calendar, Users, Globe, TrendingUp } from "lucide-react";
+import ResearchThreeBackdrop from "@/components/researchThree";
+import type {
+  Publication,
+  ScholarMetrics,
+  ScholarPublicationsResponse,
+} from "@/lib/publications";
+import { FALLBACK_PUBLICATIONS, SCHOLAR_PROFILE_URL } from "@/lib/publicationsFallback";
 
 export default function Research({ isDark }: { isDark: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [publications, setPublications] =
+    useState<Publication[]>(FALLBACK_PUBLICATIONS);
+  const [scholarMetrics, setScholarMetrics] = useState<ScholarMetrics | null>(
+    null
+  );
+  const [scholarUpdatedAt, setScholarUpdatedAt] = useState<string | null>(null);
+  const [scholarOk, setScholarOk] = useState<boolean | null>(null);
+  const [scholarLoading, setScholarLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/scholar-publications", {
+          cache: "no-store",
+        });
+        const data: ScholarPublicationsResponse = await res.json();
+        if (cancelled) return;
+        setPublications(data.publications);
+        setScholarMetrics(data.metrics);
+        setScholarUpdatedAt(data.updatedAt);
+        setScholarOk(data.ok);
+      } catch {
+        if (!cancelled) {
+          setPublications(FALLBACK_PUBLICATIONS);
+          setScholarMetrics(null);
+          setScholarOk(false);
+        }
+      } finally {
+        if (!cancelled) setScholarLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start end", "end start"]
@@ -13,75 +57,6 @@ export default function Research({ isDark }: { isDark: boolean }) {
   const y1 = useTransform(scrollYProgress, [0, 1], [0, -60]);
   const y2 = useTransform(scrollYProgress, [0, 1], [0, 80]);
   const y3 = useTransform(scrollYProgress, [0, 1], [0, -100]);
-
-  const publications = [
-    {
-      title: "Optimizing gas consumption in ethereum smart contracts: Best practices and techniques",
-      authors: "S Khanzadeh, N Samreen, MH Alalfi",
-      venue: "2023 IEEE 23rd International Conference on Software Quality, Reliability, and Security Companion (QRS-C)",
-      year: "2023",
-      doi: "10.1109/QRS-C60940.2023.00056",
-      abstract: "Full-fledged applications, known as “smart contracts,” may be executed on blockchains. At this time, the quantity of Ethereum smart contracts written in the Solidity programming language is skyrocketing. The cost for executing smart contract code is measured using gas. Gas is used to allocate resources of the Ethereum virtual machine (EVM) so that wallet transactions and smart contract transactions can self-execute. Complicated transactions involving smart contracts require more computational work, so they require a higher gas amount than a simple payment. Optimizing smart contract code is an important practice in software engineering smart contracts and that to reduce gas consumption and, in some instances, to even avoid malicious attacks. This means that reducing the cost of gas consumption in smart contracts is important for anyone who use it, including developers. For inexperienced programmers, learning the mechanics of a smart contract and blockchain technology may be a considerable hurdle when it comes to gas optimization. In this paper, we present around 28 gas efficient patterns with examples in solidity, providing data on how much gas each pattern saves. We provide a categorization of those code patterns and a comparison between the state of the art tools used to address the problem of gas optimization in smart contracts.",
-      citations: "4+",
-      category: "Blockchain & Cryptocurrency",
-      link: "https://ieeexplore.ieee.org/abstract/document/10429984"
-    },
-    {
-      title: "Solosphere: A framework for gas optimization in solidity smart contracts",
-      authors: "Sourena Khanzadeh, Manar H Alalfi",
-      venue: "2024 IEEE International Conference on Software Analysis, Evolution and Reengineering-Companion (SANER-C)",
-      year: "2024",
-      doi: "10.1109/SANER-C62648.2024.00010",
-      abstract: "SolOSphere is a Sphere of tools designed for the complete checking out, deploying, verification, and gas optimization of Ethereum smart contracts. With its three center elements - SolO, SMARTS, and SolOLab - SolOSphere offers functionality consisting of parsing and deparsing Solidity code, fetching smart contracts from GitHub, and a committed environment for gas analysis. The integration of OpenAI's GPT via SMARTS-GPT highlights the supportive role of AI in enhancing smart contract development. Although there are regions for improvement, substantially with the deparser, SolOSphere stands as a unified toolkit that could significantly enhance the smart contract development lifecycle and holds promise for enhancements and contributions.",
-      citations: "3+",
-      category: "Blockchain Development",
-      link: "https://ieeexplore.ieee.org/abstract/document/10621683"
-    },
-    {
-      title: "GANsemble for Small and Imbalanced Data Sets: A Baseline for Synthetic Microplastics Data",
-      authors: "Daniel Platnick, Sourena Khanzadeh, Alireza Sadeghian, Richard Anthony Valenzano",
-      venue: "PubPub",
-      year: "2024",
-      doi: "arXiv:2404.07356",
-      abstract: "Microplastic particle ingestion or inhalation by humans is a problem of growing concern. Unfortunately, current research methods that use machine learning to understand their potential harms are obstructed by a lack of available data. Deep learning techniques in particular are challenged by such domains where only small or imbalanced data sets are available. Overcoming this challenge often involves oversampling underrepresented classes or augmenting the existing data to improve model performance. This paper proposes GANsemble: a two-module framework connecting data augmentation with conditional generative adversarial networks (cGANs) to generate class-conditioned synthetic data. First, the data chooser module automates augmentation strategy selection by searching for the best data augmentation strategy. Next, the cGAN module uses this strategy to train a cGAN for generating enhanced synthetic data. We experiment with the GANsemble framework on a small and imbalanced microplastics data set. A Microplastic-cGAN (MPcGAN) algorithm is introduced, and baselines for synthetic microplastics (SYMP) data are established in terms of Fréchet Inception Distance (FID) and Inception Scores (IS). We also provide a synthetic microplastics filter (SYMP-Filter) algorithm to increase the quality of generated SYMP. Additionally, we show the best amount of oversampling with augmentation to fix class imbalance in small microplastics data sets. To our knowledge, this study is the first application of generative AI to synthetically create microplastics data.",
-      citations: "2+",
-      category: "Machine Learning",
-      link: "https://assets.pubpub.org/gokuyo6b/PLATNICK-51716777406141.pdf"
-    },
-    {
-        title: "An exploratory study on domain knowledge infusion in deep learning for automated threat defense",
-        authors: "Sourena Khanzadeh, Euclides Carlos Pinto Neto, Shahrear Iqbal, Manar Alalfi, Scott Buffett",
-        venue: "International Journal of Information Security",
-        year: "2025",
-        doi: "",
-        abstract: "The wide adoption of interconnected services leads to the creation of supportive solutions and business opportunities. Conversely, this new paradigm is targeted by malicious activities, aiming to compromise systems’ confidentiality, integrity, and availability. However, advanced methods lack contextual awareness, which prevents their deployment to real-world systems. Considering that the process of making informed decisions stems from the expertise of analysts based on their experience, the use of cybersecurity domain knowledge has the potential to improve Deep Learning and Deep Reinforcement Learning operations in real scenarios. Therefore, the main goal of this research is to study and evaluate the use of Knowledge Infused Learning in the context of automated threat defense. We define how cybersecurity domain knowledge can be infused into Deep Learning and Reinforcement Learning, highlighting the main challenges and benefits. Besides, we present a roadmap to apply domain knowledge for red and blue teaming activities and discuss the implications of Knowledge Infused Learning in explainability, and actionable reporting. Finally, we list the open challenges to guide the development of next-generation security solutions.",
-        citations: "1+",
-        category: "Machine Learning",
-        link: "https://link.springer.com/article/10.1007/s10207-025-00987-4#citeas"
-    },
-    {
-        title: "Opti Code Pro: A Heuristic Search-based Approach to Code Refactoring",
-        authors: "Sourena Khanzadeh, Samad Alias Nyein Chan, Richard Valenzano, Manar Alalfi",
-        venue: "arXiv",
-        year: "2023",
-        doi: "2305.07594",
-        abstract: "This paper presents an approach that evaluates best-first search methods to code refactoring. The motivation for code refactoring could be to improve the design, structure, or implementation of an existing program without changing its functionality. To solve a very specific problem of coupling and cohesion, we propose using heuristic search-based techniques on an approximation of the full code refactoring problem, to guide the refactoring process toward solutions that have high cohesion and low coupling. We evaluated our approach by providing demonstrative examples of the effectiveness of this approach on random state problems and created a tool to implement the algorithm on Java projects.",
-        citations: "1+",
-        category: "Software Engineering",
-        link: "https://arxiv.org/abs/2305.07594"
-    },
-    {
-      title: "AgentMesh: A Cooperative Multi-Agent Generative AI Framework for Software Development Automation",
-      authors: "Sourena Khanzadeh",
-      venue: "arXiv",
-      year: "2025",
-      doi: "arXiv:2507.19902",
-      abstract: "Software development is a complex, multi-phase process traditionally requiring collaboration among individuals with diverse expertise. We propose AgentMesh, a Python-based framework that uses multiple cooperating LLM-powered agents to automate software development tasks. In AgentMesh, specialized agents - a Planner, Coder, Debugger, and Reviewer - work in concert to transform a high-level requirement into fully realized code. The Planner agent first decomposes user requests into concrete subtasks; the Coder agent implements each subtask in code; the Debugger agent tests and fixes the code; and the Reviewer agent validates the final output for correctness and quality. We describe the architecture and design of these agents and their communication, and provide implementation details including prompt strategies and workflow orchestration. A case study illustrates AgentMesh handling a non-trivial development request via sequential task planning, code generation, iterative debugging, and final code review. We discuss how dividing responsibilities among cooperative agents leverages the strengths of large language models while mitigating single-agent limitations. Finally, we examine current limitations - such as error propagation and context scaling - and outline future work toward more robust, scalable multi-agent AI systems for software engineering automation.",
-      citations: "0",
-      category: "Multi-Agent Systems",
-      link: "https://arxiv.org/abs/2507.19902"
-    }
-  ];
 
   const researchAreas = [
     {
@@ -118,8 +93,14 @@ export default function Research({ isDark }: { isDark: boolean }) {
       }`}
       id="research"
     >
+      <div
+        className="pointer-events-none absolute inset-y-0 right-0 z-0 w-[min(88vw,720px)] sm:w-[min(52vw,760px)] lg:w-[min(46%,820px)] [mask-image:linear-gradient(90deg,transparent,black_32%)] [-webkit-mask-image:linear-gradient(90deg,transparent,black_32%)]"
+        aria-hidden
+      >
+        <ResearchThreeBackdrop isDark={isDark} />
+      </div>
       {/* Animated Background Patterns - hidden on small screens to avoid overlap */}
-      <div className="absolute inset-0 overflow-hidden">
+      <div className="absolute inset-0 z-[1] overflow-hidden pointer-events-none">
         <motion.div
           style={{ y: y1 }}
           className={`absolute top-20 left-4 sm:left-20 w-24 h-24 sm:w-32 sm:h-32 border-2 rounded-full hidden sm:block ${
@@ -261,15 +242,59 @@ export default function Research({ isDark }: { isDark: boolean }) {
             <p className={`text-sm sm:text-base md:text-lg ${
               isDark ? 'text-gray-300' : 'text-gray-600'
             }`}>
-              {publications.length} research papers published in top-tier conferences and journals
+              {publications.length} works listed on{" "}
+              <a
+                href={SCHOLAR_PROFILE_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`underline-offset-2 hover:underline ${
+                  isDark ? "text-purple-300" : "text-purple-700"
+                }`}
+              >
+                Google Scholar
+              </a>
+              {scholarMetrics ? (
+                <>
+                  {" "}
+                  · Profile citations{" "}
+                  <span className="font-semibold text-current">
+                    {scholarMetrics.citations}
+                  </span>
+                  , h-index{" "}
+                  <span className="font-semibold">{scholarMetrics.hIndex}</span>
+                  , i10-index{" "}
+                  <span className="font-semibold">{scholarMetrics.i10Index}</span>
+                </>
+              ) : null}
+              {scholarUpdatedAt ? (
+                <span
+                  className={`mt-2 block text-xs ${
+                    isDark ? "text-gray-500" : "text-gray-500"
+                  }`}
+                >
+                  Last fetch: {new Date(scholarUpdatedAt).toLocaleString()}
+                  {scholarOk === false
+                    ? " — showing bundled snapshot (Scholar unreachable or blocked)."
+                    : null}
+                </span>
+              ) : null}
             </p>
+            {scholarLoading ? (
+              <p
+                className={`mt-2 text-xs ${
+                  isDark ? "text-purple-300/90" : "text-purple-600/90"
+                }`}
+              >
+                Refreshing publication list from Google Scholar…
+              </p>
+            ) : null}
           </div>
 
           {/* Publications Grid - pub-card animated in GSAPScrollAnimations */}
           <div className="space-y-6 sm:space-y-8">
             {publications.map((pub) => (
               <motion.div
-                key={pub.title}
+                key={`${pub.title}-${pub.year}`}
                 data-gsap="pub-card"
                 whileHover={{ scale: 1.01, y: -2 }}
                 className={`p-4 sm:p-6 md:p-8 rounded-xl sm:rounded-2xl backdrop-blur-sm border shadow-lg transition-all duration-300 ${
@@ -371,6 +396,21 @@ export default function Research({ isDark }: { isDark: boolean }) {
                       <ExternalLink size={16} className="shrink-0 mr-2" />
                       Read Paper
                     </motion.a>
+                    {pub.scholarCitationUrl &&
+                    pub.scholarCitationUrl !== pub.link ? (
+                      <motion.a
+                        href={pub.scholarCitationUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        whileHover={{ scale: 1.03 }}
+                        whileTap={{ scale: 0.97 }}
+                        className={`w-full text-center text-xs font-medium underline-offset-2 hover:underline ${
+                          isDark ? "text-gray-400" : "text-gray-600"
+                        }`}
+                      >
+                        View on Google Scholar
+                      </motion.a>
+                    ) : null}
                   </div>
                 </div>
               </motion.div>

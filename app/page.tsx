@@ -138,14 +138,7 @@ export default function Home() {
             />
           </h1>
 
-          {/* Title */}
-          <h2
-            className={`text-2xl md:text-3xl font-medium mb-8 ${
-              isDark ? 'text-gray-300' : 'text-gray-600'
-            }`}
-          >
-            <AnimatedText text="Researcher" splitBy="chars" trigger="initial" />
-          </h2>
+         
 
           {/* Description */}
           <motion.p
@@ -195,34 +188,8 @@ export default function Home() {
             </motion.a>
           </motion.div>
 
-          {/* Stats */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 1.0 }}
-            className={`grid grid-cols-3 gap-8 mt-16 pt-8 border-t ${
-              isDark ? 'border-gray-700' : 'border-gray-200'
-            }`}
-          >
-            {[
-              { number: "8+", label: "Years Experience" },
-              { number: "100+", label: "Projects Completed" },
-              { number: "5+", label: "Research Papers" }
-            ].map((stat, index) => (
-              <div key={index} className="text-center" data-gsap="stat-item">
-                <div className={`text-3xl font-bold mb-2 ${
-                  isDark ? 'text-purple-400' : 'text-purple-600'
-                }`}>
-                  {stat.number}
-                </div>
-                <div className={`text-sm ${
-                  isDark ? 'text-gray-400' : 'text-gray-500'
-                }`}>
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </motion.div>
+
+          
         </div>
       </main>
       </div>
