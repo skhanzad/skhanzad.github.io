@@ -11,17 +11,19 @@
   "dependencies": {
     "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
-    "@mdx-js/loader": "^3.1.0",
-    "@next/mdx": "^15.5.0",
     "@react-three/drei": "^10.7.3",
     "@react-three/fiber": "^9.3.0",
     "cheerio": "^1.2.0",
     "framer-motion": "^12.23.12",
+    "gray-matter": "^4.0.3",
     "gsap": "^3.14.2",
     "lucide-react": "^0.541.0",
     "next": "^15.5.0",
+    "next-mdx-remote": "^6.0.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
+    "rehype-pretty-code": "^0.14.3",
+    "remark-gfm": "^4.0.1",
     "three": "^0.179.1"
   },
   "overrides": {

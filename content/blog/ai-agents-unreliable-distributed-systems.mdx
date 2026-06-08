@@ -1,0 +1,33 @@
+---
+title: "AI Agents Are Unreliable Distributed Systems"
+description: "Why AI agents fail and how engineers should think about them."
+date: "2026-06-07"
+tags: ["AI", "systems", "software engineering"]
+published: true
+---
+
+Agents combine language models, tools, memory, and orchestration into a pipeline that *looks* like one program but behaves like many independent processes. Failures are partial, timing-dependent, and hard to reproduce.
+
+## What goes wrong
+
+- **Tool calls** can succeed locally while the overall task fails.
+- **Retries** amplify load and can create duplicate side effects without idempotency.
+- **Context windows** mean “memory” is lossy by design.
+
+## A useful mental model
+
+Treat an agent stack the way you would a small distributed system: define clear contracts, assume flaky RPCs, add timeouts, and make recovery paths explicit. Tests should stress ordering, partial failures, and malformed tool outputs—not only happy paths.
+
+```typescript
+async function runWithTimeout<T>(
+  work: Promise<T>,
+  ms: number
+): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("timeout")), ms)
+  );
+  return Promise.race([work, timeout]);
+}
+```
+
+The goal is not pessimism, but **predictable degradation** when models or tools misbehave.
