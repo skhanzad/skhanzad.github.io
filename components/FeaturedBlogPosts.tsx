@@ -19,7 +19,7 @@ export default function FeaturedBlogPosts() {
 
   return (
     <section
-      className="relative z-10 w-full border-t border-purple-500/15 px-6 py-16"
+      className="relative z-10 w-full border-t border-gray-200/70 px-6 py-16 dark:border-purple-500/15"
       aria-labelledby="featured-blog-heading"
     >
       <div className="mx-auto max-w-5xl">
@@ -37,7 +37,7 @@ export default function FeaturedBlogPosts() {
           </div>
           <Link
             href="/blog"
-            className="shrink-0 rounded-full border border-purple-500/40 px-5 py-2 text-sm font-semibold text-purple-600 transition hover:bg-purple-500/10 dark:text-purple-300 dark:hover:bg-purple-500/15"
+            className="shrink-0 rounded-full border border-purple-600/25 bg-white/80 px-5 py-2 text-sm font-semibold text-purple-800 shadow-sm transition hover:border-purple-500/50 hover:bg-purple-50 dark:border-purple-400/35 dark:bg-white/5 dark:text-purple-200 dark:hover:bg-purple-500/15"
           >
             View all posts
           </Link>
@@ -46,22 +46,22 @@ export default function FeaturedBlogPosts() {
         <ul className="grid gap-6 md:grid-cols-3">
           {posts.map((post) => (
             <li key={post.slug}>
-              <article className="flex h-full flex-col rounded-2xl border border-purple-500/20 bg-white/40 p-5 text-left shadow-sm backdrop-blur-sm transition hover:border-purple-500/40 hover:shadow-md dark:bg-white/5">
+              <article className="flex h-full flex-col rounded-2xl border border-gray-200/90 bg-white/95 p-5 text-left shadow-sm ring-1 ring-gray-900/[0.04] backdrop-blur-sm transition hover:border-purple-300 hover:shadow-md dark:border-purple-500/25 dark:bg-white/[0.07] dark:ring-white/10 dark:hover:border-purple-500/45">
                 <time
                   dateTime={post.date}
-                  className="text-xs font-medium uppercase tracking-wide text-purple-600 dark:text-purple-400"
+                  className="text-xs font-medium uppercase tracking-wide text-purple-700 dark:text-purple-400"
                 >
                   {formatDate(post.date)}
                 </time>
                 <h3 className="mt-2 text-lg font-semibold leading-snug text-[var(--foreground)]">
                   <Link
                     href={`/blog/${post.slug}`}
-                    className="transition hover:text-purple-600 dark:hover:text-purple-400"
+                    className="text-[var(--foreground)] transition hover:text-purple-700 dark:hover:text-purple-300"
                   >
                     {post.title}
                   </Link>
                 </h3>
-                <p className="mt-2 flex-1 text-sm leading-relaxed text-[var(--foreground)]/75 line-clamp-3">
+                <p className="mt-2 flex-1 text-sm leading-relaxed text-[var(--foreground)]/80 line-clamp-3">
                   {post.description}
                 </p>
                 {post.tags.length > 0 && (
@@ -69,7 +69,7 @@ export default function FeaturedBlogPosts() {
                     {post.tags.slice(0, 3).map((tag) => (
                       <li
                         key={tag}
-                        className="rounded-md bg-purple-500/10 px-2 py-0.5 text-xs font-medium text-purple-700 dark:text-purple-300"
+                        className="rounded-md bg-purple-100/90 px-2 py-0.5 text-xs font-medium text-purple-900 dark:bg-purple-500/20 dark:text-purple-200"
                       >
                         {tag}
                       </li>

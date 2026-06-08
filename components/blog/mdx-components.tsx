@@ -112,7 +112,7 @@ export function createMdxComponents(): MDXComponents {
       }
       return (
         <code
-          className="rounded-md border border-purple-500/20 bg-purple-500/[0.12] px-1.5 py-0.5 font-mono text-[0.9em] font-medium text-purple-900 dark:border-purple-400/25 dark:bg-purple-400/15 dark:text-purple-100"
+            className="rounded-md border border-purple-200/80 bg-purple-50 px-1.5 py-0.5 font-mono text-[0.9em] font-medium text-purple-950 dark:border-purple-400/25 dark:bg-purple-400/15 dark:text-purple-100"
           {...rest}
         >
           {children}

@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
 import { SunIcon, MoonIcon } from "lucide-react";
 import Nav from "@/components/nav";
@@ -40,6 +41,17 @@ export default function BlogChrome({
             ? "bg-gradient-to-br from-black via-slate-900 to-black text-white"
             : "bg-gradient-to-br from-blue-50 via-white to-purple-50 text-gray-900"
         }`}
+        style={
+          isDark
+            ? ({
+                "--foreground": "#f4f4f5",
+                "--background": "#0a0a0a",
+              } as CSSProperties)
+            : ({
+                "--foreground": "#171717",
+                "--background": "#ffffff",
+              } as CSSProperties)
+        }
       >
         {children}
       </div>

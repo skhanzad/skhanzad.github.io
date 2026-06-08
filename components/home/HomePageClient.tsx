@@ -1,10 +1,11 @@
 "use client";
 
+import type { CSSProperties } from "react";
+import { useState, useEffect } from "react";
+import { SunIcon, MoonIcon, ArrowRightIcon, SparklesIcon } from "lucide-react";
 import Nav from "@/components/nav";
 import Footer from "@/components/footer";
 import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
-import { SunIcon, MoonIcon, ArrowRightIcon, SparklesIcon } from "lucide-react";
 import ThreeHero from "@/components/threeHero";
 import AboutMe from "@/components/aboutMe";
 import WorkTimeline from "@/components/workTimeline";
@@ -198,7 +199,22 @@ export default function HomePageClient({ featured }: Props) {
           </div>
         </main>
 
-        {featured}
+        <div
+          className="w-full"
+          style={
+            isDark
+              ? ({
+                  "--foreground": "#f4f4f5",
+                  "--background": "#0a0a0a",
+                } as CSSProperties)
+              : ({
+                  "--foreground": "#171717",
+                  "--background": "#ffffff",
+                } as CSSProperties)
+          }
+        >
+          {featured}
+        </div>
       </div>
 
       <VideoScrollSection isDark={isDark} />

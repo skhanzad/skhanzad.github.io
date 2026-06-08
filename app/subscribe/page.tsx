@@ -27,13 +27,14 @@ export default function SubscribePage() {
           .
         </p>
 
-        <div className="mt-10 overflow-hidden rounded-2xl border border-purple-500/25 bg-white shadow-lg dark:border-purple-500/30 dark:bg-[#111]">
+        <div className="mt-10 overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-md ring-1 ring-gray-900/[0.04] dark:border-purple-500/30 dark:bg-[#111] dark:ring-white/10">
           <iframe
             src={SUBSTACK_EMBED_URL}
             title="Subscribe on Substack"
             width="100%"
             height="320"
-            style={{ border: "0", width: "100%", background: "transparent" }}
+            className="min-h-[320px] w-full bg-white dark:bg-[#111]"
+            style={{ border: "0" }}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
           />
