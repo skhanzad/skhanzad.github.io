@@ -2,9 +2,15 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { compileMDX } from "next-mdx-remote/rsc";
-import remarkGfm from "remark-gfm";
 import rehypePrettyCode from "rehype-pretty-code";
+import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import { MathBlock, MathInline } from "@/components/blog/MathKatex";
+import { TikzDiagram } from "@/components/blog/TikzDiagram";
 import { getPostBySlug, getPublishedSlugs } from "@/lib/blog";
+import { remarkMathFenced } from "@/lib/remark-math-fenced";
+import { remarkMathToKaTeXJsx } from "@/lib/remark-math-to-katex-jsx";
+import { remarkTikz } from "@/lib/remark-tikz";
 import {
   DEFAULT_OG_IMAGE_PATH,
   SITE_NAME,
@@ -82,10 +88,21 @@ export default async function BlogPostPage({ params }: Props) {
 
   const { content } = await compileMDX({
     source: post.body,
-    components: createMdxComponents(),
+    components: {
+      ...createMdxComponents(),
+      MathBlock,
+      MathInline,
+      TikzDiagram,
+    },
     options: {
       mdxOptions: {
-        remarkPlugins: [remarkGfm],
+        remarkPlugins: [
+          remarkGfm,
+          [remarkMath, { singleDollarTextMath: false }],
+          remarkMathFenced,
+          remarkMathToKaTeXJsx,
+          remarkTikz,
+        ],
         rehypePlugins: [
           [
             rehypePrettyCode,

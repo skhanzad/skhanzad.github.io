@@ -26,6 +26,13 @@ You can start editing the page by modifying `app/page.tsx`. The page auto-update
 
 Set **`NEXT_PUBLIC_SITE_URL`** to your canonical site origin in production (for example `https://yourdomain.com`) so RSS, sitemap, Open Graph, and `metadataBase` resolve correctly. On Netlify, the `URL` environment variable is used as a fallback when unset.
 
+### Math (KaTeX) and TikZ in `content/blog` MDX
+
+Blog posts compiled in `app/blog/[slug]/page.tsx` support:
+
+- **LaTeX math** via [remark-math](https://github.com/remarkjs/remark-math) and server-side KaTeX in `components/blog/MathKatex.tsx` (`MathBlock` / `MathInline`). MDX does not pass mdast `math` through to `rehype-katex`, so `lib/remark-math-to-katex-jsx.ts` turns every `math` / `inlineMath` node into those components (LaTeX is base64 in a prop). KaTeX CSS is in `app/blog/layout.tsx`. **Display:** `$$ … $$`, `\[ … \]`, or fenced **`math`** / **`latex`**. **Inline:** `\( … \)` — single `$…$` is off. In `` ```math `` fences, matrix rows use **`\\`**, not `\\\`.
+- **TikZ** via fenced **` ```tikz `** (`lib/remark-tikz.ts` → `TikzDiagram`). TikZJax loads in an **iframe `srcDoc`** so it behaves like a small standalone page (injected `text/tikz` scripts in React often never render). Allow **`https://tikzjax.com`** in CSP if you add one. Prefer simple named colors (`teal`, `orange`); **`xcolor` mixes** like `green!60!black` often fail silently in TikZJax.
+
 ### TinaCMS (MDX admin)
 
 - **Config:** `tina/config.ts` — collection **Blog posts** → `content/blog` (`.mdx`), fields: title, description, date, tags, published, body. **Branch** resolves from `GITHUB_BRANCH`, **`BRANCH`** (Netlify sets this on deploy), `VERCEL_GIT_COMMIT_REF`, `HEAD`, then **`main`**. That name must match a branch **enabled in Tina Cloud** for your project, or `tinacms build` fails with **“Branch … is not on TinaCloud”**. Locally, set **`BRANCH`** in `.env.local` to a branch that exists in Tina Cloud (you cannot use `git` in `tina/config.ts` — it is bundled for the admin UI).
