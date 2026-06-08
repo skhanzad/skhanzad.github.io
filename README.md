@@ -28,14 +28,15 @@ Set **`NEXT_PUBLIC_SITE_URL`** to your canonical site origin in production (for 
 
 ### TinaCMS (MDX admin)
 
-- **Config:** `tina/config.ts` — collection **Blog posts** → `content/blog` (`.mdx`), fields: title, description, date, tags, published, body. **Branch** resolves from `GITHUB_BRANCH`, **`BRANCH`** (Netlify), `VERCEL_GIT_COMMIT_REF`, `HEAD`, then defaults to **`main`** — set your default branch in Git/Tina Cloud accordingly.
+- **Config:** `tina/config.ts` — collection **Blog posts** → `content/blog` (`.mdx`), fields: title, description, date, tags, published, body. **Branch** resolves from `GITHUB_BRANCH`, **`BRANCH`** (Netlify sets this on deploy), `VERCEL_GIT_COMMIT_REF`, `HEAD`, then **`main`**. That name must match a branch **enabled in Tina Cloud** for your project, or `tinacms build` fails with **“Branch … is not on TinaCloud”**. Locally, set **`BRANCH`** in `.env.local` to a branch that exists in Tina Cloud (you cannot use `git` in `tina/config.ts` — it is bundled for the admin UI).
+- **That error:** (1) In Tina Cloud, add or enable the same branch name as Git’s default / your deploy branch, or (2) set **`BRANCH`** in `.env.local` to a branch that is on Tina Cloud, or (3) run **`npm run build:local`** (`tinacms build --skip-cloud-checks`) to produce admin assets without the Cloud branch check — use only when you accept skipping that validation (not a substitute for fixing Cloud branch setup for production).
 - **Admin UI:** [http://localhost:3000/admin](http://localhost:3000/admin) (redirects to `/admin/index.html`) after `npm run dev` or `npm run build`.
 - **Scripts:** `npm run dev` / `npm run build` run **`node_modules/.bin/tinacms`** (from **`@tinacms/cli`**) so the CLI always loads **this repo’s** `tinacms` dependency when bundling `tina/config.ts`. Avoid **`npx @tinacms/cli`** alone — it can run a **cached** CLI without your `tinacms` package and fails with “Could not resolve tinacms”.
 - **CLI:** Use **`npm run dev`** / **`npm run build`** so `tinacms` comes from `node_modules/.bin` (`@tinacms/cli`). Plain **`npx tinacms`** often fails (“could not determine executable to run”); use **`npx --no-install @tinacms/cli …`** only if you must invoke the CLI by hand.
 - **Port 9000 / “Datalayer server is busy”:** Another `tinacms dev` is running. Stop it (**Ctrl+C**) or use **`npm run dev:alt`** (Tina on **14002** / **19002**).
 - **`npm run build` while `npm run dev` runs:** Stop dev first — both use Tina’s default ports (**4001** / **9000**) and will conflict.
 - **“Index version … Reindex” / `GetCollection` errors:** Tina Cloud needs a **full** `tinacms build` with your **Cloud env** so indexes update. Then **commit and push** `tina/tina-lock.json` (see below). You can also use **Tina Cloud → project → Reindex** if the dashboard offers it.
-- **Production:** [Tina Cloud](https://tina.io/docs/tina-cloud/overview) — set **`NEXT_PUBLIC_TINA_CLIENT_ID`** and **`TINA_TOKEN`** on your host. Without them, `tinacms build` still runs locally for admin assets; Cloud admin stays disconnected until configured.
+- **Production:** [Tina Cloud](https://tina.io/docs/tina-cloud/overview) — set **`NEXT_PUBLIC_TINA_CLIENT_ID`** and **`TINA_TOKEN`** on your host. With those set, **`tinacms build`** verifies the branch exists on Tina Cloud. Without credentials, the Cloud branch check is skipped; the generated admin may not connect to Cloud until you configure env vars.
 - **Generated (gitignored):** `public/admin/`, `tina/__generated__/` — recreated on dev/build.
 - **Committed:** `tina/config.ts`, **`tina/tina-lock.json`** (schema lock for Tina Cloud — **not** gitignored).
 
@@ -46,7 +47,7 @@ Copy `.env.example` to `.env.local` and fill in values as needed.
 1. **Publish directory:** In the Netlify UI, open **Site configuration → Build & deploy** and clear **Publish directory** (leave it blank). Setting it to **`.next`** breaks [`@netlify/plugin-nextjs`](https://docs.netlify.com/frameworks/next-js/overview/) and often fails the deploy. Your logs still showed `publish: .../.next` from the UI — remove it there so `publishOrigin` is not `ui`.
 2. **Build command:** `npm run build` (set in `netlify.toml`).
 3. **Node / memory:** `netlify.toml` sets **`NODE_OPTIONS=--max-old-space-size=6144`** so **`tinacms build`** (with Tina Cloud indexing) is less likely to OOM.
-4. **Environment:** Set `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_TINA_CLIENT_ID`, and `TINA_TOKEN` as needed.
+4. **Environment:** Set `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_TINA_CLIENT_ID`, and `TINA_TOKEN` as needed. Netlify sets **`BRANCH`** to the branch being built — that branch must be enabled in **Tina Cloud → project → Configuration** (same error as locally if it is missing).
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
