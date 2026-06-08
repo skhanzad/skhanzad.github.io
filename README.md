@@ -31,6 +31,7 @@ Set **`NEXT_PUBLIC_SITE_URL`** to your canonical site origin in production (for 
 - **Config:** `tina/config.ts` — collection **Blog posts** → `content/blog` (`.mdx`), fields: title, description, date, tags, published, body.
 - **Admin UI:** [http://localhost:3000/admin](http://localhost:3000/admin) (redirects to `/admin/index.html`) after `npm run dev` or `npm run build`.
 - **Dev:** `npm run dev` runs `tinacms dev` plus Next.js (Tina GraphQL on port **4001** by default).
+- **Build + dev together:** `npm run build` uses Tina local ports **14001** / **19000** so it does not collide with `tinacms dev` on **4001** / **9000**.
 - **Production:** Create a project on [Tina Cloud](https://tina.io/docs/tina-cloud/overview), then set **`NEXT_PUBLIC_TINA_CLIENT_ID`** and **`TINA_TOKEN`** on your host. With those set, `npm run build` uses a cloud-backed client so the deployed admin can load and save content. Without them, the build still succeeds using a **local** client (fine for the public site; the hosted admin will not connect until Cloud is configured).
 - Generated output (`public/admin/`, `tina/__generated__/`) is gitignored and recreated on each dev/build.
 
