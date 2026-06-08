@@ -1,6 +1,6 @@
 ---
-title: Linear Algebra for Researcher
-description: PartI linear algebra
+title: Linear Algebra for Researchers
+description: Part I linear algebra
 date: 2026-06-08
 tags:
   - Linear Algebra
@@ -8,45 +8,1134 @@ tags:
 published: true
 ---
 
-we now move on to learning about linear algebra. This article is a condensed guide to the fundamentals of linear algebra. It is Part I of the series, and I will publish more articles on this topic.
+We now move on to learning about linear algebra.
 
-In this guide, I will cover some of the mathematics and code behind algebraic operations, which form the backbone of modern Machine Learning (ML).
+This article is a condensed guide to the fundamentals of linear algebra. It is Part I of the series, and I will publish more articles on this topic.
+
+In this guide, I will cover some of the mathematics and code behind algebraic operations, which form the backbone of modern Machine Learning, ML.
 
 The table of contents for this guide is as follows:
 
-* Scalars, Vectors, Matrices, and Tensors
-* Matrix Operations
-* Dot Product
-* Norms and Distances
-* Linear Transformations
-* Eigenvalues and Eigenvectors
-* Matrix Factorization
-* Singular Value Decomposition, SVD
-* Orthogonality
-* Projections
-* Rank
-* Positive Definite Matrices
+- Scalars, Vectors, Matrices, and Tensors
+- Matrix Operations
+- Dot Product
+- Norms and Distances
+- Linear Transformations
+- Eigenvalues and Eigenvectors
+- Matrix Factorization
+- Singular Value Decomposition, SVD
+- Orthogonality
+- Projections
+- Rank
+- Positive Definite Matrices
+
+---
+
+## Scalars, Vectors, Matrices, and Tensors
+
+A **scalar** is a single number.
 
 ```math
-\vec{u} = \begin{pmatrix} 2 \\ -1 \\ 3 \end{pmatrix}
-\quad \text{and} \quad
-c\vec{u} = c\begin{pmatrix} 2 \\ -1 \\ 3 \end{pmatrix}
-= \begin{pmatrix} 2c \\ -c \\ 3c \end{pmatrix}.
+x = 5
 ```
 
-Their sum is computed componentwise:
+A **vector** is an ordered list of numbers.
+
+```math
+\vec{u} =
+\begin{pmatrix}
+2 \\
+-1 \\
+3
+\end{pmatrix}
+```
+
+A **matrix** is a rectangular table of numbers.
+
+```math
+A =
+\begin{pmatrix}
+1 & 2 & 3 \\
+4 & 5 & 6
+\end{pmatrix}
+```
+
+A **tensor** is a generalization of scalars, vectors, and matrices to higher dimensions.
+
+In machine learning:
+
+- a scalar can represent a loss value,
+- a vector can represent an embedding,
+- a matrix can represent a batch of data,
+- a tensor can represent image batches, activations, or model weights.
+
+For example, a batch of RGB images can be represented as a 4D tensor:
+
+```python
+import numpy as np
+
+images = np.random.randn(32, 224, 224, 3)
+
+print(images.shape)
+```
+
+Here:
+
+```math
+32 \times 224 \times 224 \times 3
+```
+
+means:
+
+- `32` images,
+- height of `224`,
+- width of `224`,
+- `3` color channels.
+
+---
+
+## Vector Operations
+
+Vectors can be scaled, added, and subtracted.
+
+Given:
+
+```math
+\vec{u} =
+\begin{pmatrix}
+2 \\
+-1 \\
+3
+\end{pmatrix}
+```
+
+Multiplying by a scalar `c` gives:
+
+```math
+c\vec{u}
+=
+c
+\begin{pmatrix}
+2 \\
+-1 \\
+3
+\end{pmatrix}
+=
+\begin{pmatrix}
+2c \\
+-c \\
+3c
+\end{pmatrix}
+```
+
+Vector addition is computed componentwise.
+
+If:
+
+```math
+\vec{a} =
+\begin{pmatrix}
+1 \\
+2 \\
+3
+\end{pmatrix},
+\quad
+\vec{b} =
+\begin{pmatrix}
+4 \\
+5 \\
+6
+\end{pmatrix}
+```
+
+then:
+
+```math
+\vec{a} + \vec{b}
+=
+\begin{pmatrix}
+1 + 4 \\
+2 + 5 \\
+3 + 6
+\end{pmatrix}
+=
+\begin{pmatrix}
+5 \\
+7 \\
+9
+\end{pmatrix}
+```
+
+Geometrically, vector addition places one vector after another.
 
 ```tikz
 \begin{tikzpicture}[scale=0.8]
   \draw[->] (-0.5,0) -- (5.8,0) node[right] {$x$};
   \draw[->] (0,-0.5) -- (0,5.8) node[above] {$y$};
+
   \draw[->, thick, blue] (0,0) -- (3,2) node[midway, above left] {$\vec{d}$};
   \draw[->, thick, red] (0,0) -- (1.5,1) node[midway, below right] {$0.5\vec{d}$};
   \draw[->, thick, orange] (3,2) -- (5,5) node[midway, right] {$(2,3)$};
   \draw[->, thick, teal] (0,0) -- (5,5) node[midway, above] {$\vec{d}+(2,3)$};
+
   \fill (3,2) circle (2pt) node[above right] {$(3,2)$};
   \fill (1.5,1) circle (2pt) node[below right] {$(1.5,1)$};
   \fill (5,5) circle (2pt) node[above right] {$(5,5)$};
 \end{tikzpicture}
 ```
 
+In Python:
+
+```python
+import numpy as np
+
+a = np.array([1, 2, 3])
+b = np.array([4, 5, 6])
+
+print(a + b)
+print(2 * a)
+print(a - b)
+```
+
+---
+
+## Matrix Operations
+
+Matrices can be added, subtracted, multiplied by scalars, transposed, and multiplied with other matrices.
+
+Let:
+
+```math
+A =
+\begin{pmatrix}
+1 & 2 \\
+3 & 4
+\end{pmatrix},
+\quad
+B =
+\begin{pmatrix}
+5 & 6 \\
+7 & 8
+\end{pmatrix}
+```
+
+Matrix addition is elementwise:
+
+```math
+A + B =
+\begin{pmatrix}
+1+5 & 2+6 \\
+3+7 & 4+8
+\end{pmatrix}
+=
+\begin{pmatrix}
+6 & 8 \\
+10 & 12
+\end{pmatrix}
+```
+
+Scalar multiplication is also elementwise:
+
+```math
+2A =
+\begin{pmatrix}
+2 & 4 \\
+6 & 8
+\end{pmatrix}
+```
+
+The transpose of a matrix flips rows and columns.
+
+```math
+A =
+\begin{pmatrix}
+1 & 2 & 3 \\
+4 & 5 & 6
+\end{pmatrix}
+```
+
+```math
+A^T =
+\begin{pmatrix}
+1 & 4 \\
+2 & 5 \\
+3 & 6
+\end{pmatrix}
+```
+
+In NumPy:
+
+```python
+A = np.array([[1, 2], [3, 4]])
+B = np.array([[5, 6], [7, 8]])
+
+print(A + B)
+print(2 * A)
+print(A.T)
+```
+
+---
+
+## Matrix Multiplication
+
+Matrix multiplication is different from elementwise multiplication.
+
+If:
+
+```math
+A \in \mathbb{R}^{m \times n}
+```
+
+and:
+
+```math
+B \in \mathbb{R}^{n \times p}
+```
+
+then:
+
+```math
+AB \in \mathbb{R}^{m \times p}
+```
+
+The inner dimensions must match.
+
+For example:
+
+```math
+A =
+\begin{pmatrix}
+1 & 2 \\
+3 & 4
+\end{pmatrix},
+\quad
+B =
+\begin{pmatrix}
+5 & 6 \\
+7 & 8
+\end{pmatrix}
+```
+
+```math
+AB =
+\begin{pmatrix}
+1 \cdot 5 + 2 \cdot 7 & 1 \cdot 6 + 2 \cdot 8 \\
+3 \cdot 5 + 4 \cdot 7 & 3 \cdot 6 + 4 \cdot 8
+\end{pmatrix}
+```
+
+```math
+AB =
+\begin{pmatrix}
+19 & 22 \\
+43 & 50
+\end{pmatrix}
+```
+
+In Python:
+
+```python
+A = np.array([[1, 2], [3, 4]])
+B = np.array([[5, 6], [7, 8]])
+
+print(A @ B)
+```
+
+Matrix multiplication is one of the core operations in neural networks.
+
+A linear layer can be written as:
+
+```math
+Y = XW + b
+```
+
+where:
+
+- `X` is the input,
+- `W` is the weight matrix,
+- `b` is the bias,
+- `Y` is the output.
+
+---
+
+## Dot Product
+
+The **dot product** takes two vectors and returns a scalar.
+
+For two vectors:
+
+```math
+\vec{a} =
+\begin{pmatrix}
+a_1 \\
+a_2 \\
+a_3
+\end{pmatrix},
+\quad
+\vec{b} =
+\begin{pmatrix}
+b_1 \\
+b_2 \\
+b_3
+\end{pmatrix}
+```
+
+the dot product is:
+
+```math
+\vec{a} \cdot \vec{b}
+=
+a_1b_1 + a_2b_2 + a_3b_3
+```
+
+Example:
+
+```math
+\vec{a} =
+\begin{pmatrix}
+1 \\
+2 \\
+3
+\end{pmatrix},
+\quad
+\vec{b} =
+\begin{pmatrix}
+4 \\
+5 \\
+6
+\end{pmatrix}
+```
+
+```math
+\vec{a} \cdot \vec{b}
+=
+1(4) + 2(5) + 3(6)
+=
+32
+```
+
+The dot product also relates to the angle between two vectors:
+
+```math
+\vec{a} \cdot \vec{b}
+=
+\|\vec{a}\| \|\vec{b}\| \cos \theta
+```
+
+This formula is important because it tells us how aligned two vectors are.
+
+- If the dot product is positive, the vectors point in similar directions.
+- If the dot product is zero, the vectors are perpendicular.
+- If the dot product is negative, the vectors point in opposite directions.
+
+In Python:
+
+```python
+a = np.array([1, 2, 3])
+b = np.array([4, 5, 6])
+
+dot = np.dot(a, b)
+
+print(dot)
+```
+
+---
+
+## Norms and Distances
+
+A **norm** measures the size or length of a vector.
+
+The most common norm is the Euclidean norm, also called the L2 norm:
+
+```math
+\|\vec{x}\|_2 =
+\sqrt{x_1^2 + x_2^2 + \cdots + x_n^2}
+```
+
+Example:
+
+```math
+\vec{x} =
+\begin{pmatrix}
+3 \\
+4
+\end{pmatrix}
+```
+
+```math
+\|\vec{x}\|_2 =
+\sqrt{3^2 + 4^2}
+=
+5
+```
+
+Another common norm is the L1 norm:
+
+```math
+\|\vec{x}\|_1 =
+|x_1| + |x_2| + \cdots + |x_n|
+```
+
+Distance between two vectors is usually computed by applying a norm to their difference:
+
+```math
+d(\vec{x}, \vec{y})
+=
+\|\vec{x} - \vec{y}\|
+```
+
+For Euclidean distance:
+
+```math
+d(\vec{x}, \vec{y})
+=
+\sqrt{
+(x_1-y_1)^2
++
+(x_2-y_2)^2
++
+\cdots
++
+(x_n-y_n)^2
+}
+```
+
+Norms are used in machine learning for:
+
+- measuring error,
+- regularization,
+- clustering,
+- nearest-neighbor search,
+- optimization.
+
+In Python:
+
+```python
+x = np.array([3, 4])
+y = np.array([1, 2])
+
+l2_norm = np.linalg.norm(x, ord=2)
+l1_norm = np.linalg.norm(x, ord=1)
+distance = np.linalg.norm(x - y)
+
+print(l2_norm)
+print(l1_norm)
+print(distance)
+```
+
+---
+
+## Linear Transformations
+
+A **linear transformation** maps vectors to other vectors while preserving addition and scalar multiplication.
+
+A function `T` is linear if:
+
+```math
+T(\vec{u} + \vec{v})
+=
+T(\vec{u}) + T(\vec{v})
+```
+
+and:
+
+```math
+T(c\vec{u})
+=
+cT(\vec{u})
+```
+
+Matrices represent linear transformations.
+
+For example:
+
+```math
+A =
+\begin{pmatrix}
+2 & 0 \\
+0 & 1
+\end{pmatrix}
+```
+
+This matrix stretches vectors by a factor of `2` in the x-direction.
+
+```math
+A
+\begin{pmatrix}
+x \\
+y
+\end{pmatrix}
+=
+\begin{pmatrix}
+2x \\
+y
+\end{pmatrix}
+```
+
+Another example is rotation.
+
+```math
+R =
+\begin{pmatrix}
+0 & -1 \\
+1 & 0
+\end{pmatrix}
+```
+
+This rotates a vector by 90 degrees counterclockwise:
+
+```math
+R
+\begin{pmatrix}
+x \\
+y
+\end{pmatrix}
+=
+\begin{pmatrix}
+-y \\
+x
+\end{pmatrix}
+```
+
+In machine learning, many layers are built from linear transformations:
+
+```math
+h = Wx + b
+```
+
+This appears in dense layers, embeddings, attention projections, and many other architectures.
+
+---
+
+## Eigenvalues and Eigenvectors
+
+An **eigenvector** of a matrix is a vector whose direction does not change after the matrix transforms it.
+
+For a square matrix `A`, an eigenvector `v` and eigenvalue `λ` satisfy:
+
+```math
+A\vec{v} = \lambda \vec{v}
+```
+
+Here:
+
+- `A` is the matrix,
+- `v` is the eigenvector,
+- `λ` is the eigenvalue.
+
+The eigenvalue tells us how much the eigenvector is stretched or compressed.
+
+Example:
+
+```math
+A =
+\begin{pmatrix}
+2 & 0 \\
+0 & 3
+\end{pmatrix}
+```
+
+For:
+
+```math
+\vec{v}_1 =
+\begin{pmatrix}
+1 \\
+0
+\end{pmatrix}
+```
+
+we get:
+
+```math
+A\vec{v}_1 =
+\begin{pmatrix}
+2 \\
+0
+\end{pmatrix}
+=
+2\vec{v}_1
+```
+
+So `v₁` is an eigenvector with eigenvalue `2`.
+
+For:
+
+```math
+\vec{v}_2 =
+\begin{pmatrix}
+0 \\
+1
+\end{pmatrix}
+```
+
+we get:
+
+```math
+A\vec{v}_2 =
+\begin{pmatrix}
+0 \\
+3
+\end{pmatrix}
+=
+3\vec{v}_2
+```
+
+So `v₂` is an eigenvector with eigenvalue `3`.
+
+In Python:
+
+```python
+A = np.array([[2, 0], [0, 3]])
+
+eigenvalues, eigenvectors = np.linalg.eig(A)
+
+print(eigenvalues)
+print(eigenvectors)
+```
+
+Eigenvalues and eigenvectors are used in:
+
+- Principal Component Analysis, PCA,
+- dimensionality reduction,
+- graph algorithms,
+- spectral clustering,
+- stability analysis.
+
+---
+
+## Matrix Factorization
+
+Matrix factorization means decomposing a matrix into simpler matrices.
+
+Instead of working directly with one large matrix, we write it as a product of smaller or more structured matrices.
+
+A general form is:
+
+```math
+A = BC
+```
+
+where `B` and `C` are matrices whose product reconstructs `A`.
+
+Matrix factorization is useful because it can reveal hidden structure in data.
+
+In machine learning, matrix factorization appears in:
+
+- recommendation systems,
+- dimensionality reduction,
+- compression,
+- topic modeling,
+- collaborative filtering.
+
+For example, in recommendation systems, we may have a user-item matrix:
+
+```math
+R \approx UV^T
+```
+
+where:
+
+- `R` is the user-item rating matrix,
+- `U` represents users,
+- `V` represents items.
+
+The model learns hidden features that explain user preferences and item properties.
+
+---
+
+## Singular Value Decomposition, SVD
+
+Singular Value Decomposition, or **SVD**, is one of the most important matrix factorizations.
+
+For a matrix `A`, SVD decomposes it as:
+
+```math
+A = U \Sigma V^T
+```
+
+where:
+
+- `U` contains the left singular vectors,
+- `Σ` contains the singular values,
+- `V^T` contains the right singular vectors.
+
+The singular values tell us how important each direction is.
+
+If some singular values are very small, we can approximate the original matrix using fewer dimensions.
+
+This gives a low-rank approximation:
+
+```math
+A \approx U_k \Sigma_k V_k^T
+```
+
+where `k` is smaller than the original dimension.
+
+This is useful for:
+
+- compression,
+- noise reduction,
+- dimensionality reduction,
+- latent semantic analysis,
+- recommendation systems.
+
+In Python:
+
+```python
+A = np.array([[1, 2], [3, 4], [5, 6]])
+
+U, S, Vt = np.linalg.svd(A)
+
+print(U)
+print(S)
+print(Vt)
+```
+
+The values in `S` are the singular values.
+
+---
+
+## Orthogonality
+
+Two vectors are **orthogonal** if their dot product is zero.
+
+```math
+\vec{a} \cdot \vec{b} = 0
+```
+
+This means the vectors are perpendicular.
+
+Example:
+
+```math
+\vec{a} =
+\begin{pmatrix}
+1 \\
+0
+\end{pmatrix},
+\quad
+\vec{b} =
+\begin{pmatrix}
+0 \\
+1
+\end{pmatrix}
+```
+
+Their dot product is:
+
+```math
+\vec{a} \cdot \vec{b}
+=
+1(0) + 0(1)
+=
+0
+```
+
+So the vectors are orthogonal.
+
+Orthogonality is useful because orthogonal directions do not overlap in the information they represent.
+
+In machine learning and statistics, orthogonality appears in:
+
+- PCA,
+- feature decorrelation,
+- QR decomposition,
+- numerical optimization,
+- basis vectors.
+
+A matrix `Q` is orthogonal if:
+
+```math
+Q^T Q = I
+```
+
+This means the columns of `Q` are orthonormal.
+
+---
+
+## Projections
+
+A **projection** maps a vector onto another vector or subspace.
+
+Suppose we want to project vector `a` onto vector `b`.
+
+The projection is:
+
+```math
+\text{proj}_{\vec{b}}(\vec{a})
+=
+\frac{\vec{a} \cdot \vec{b}}{\vec{b} \cdot \vec{b}}
+\vec{b}
+```
+
+This tells us how much of `a` lies in the direction of `b`.
+
+Example:
+
+```math
+\vec{a} =
+\begin{pmatrix}
+3 \\
+4
+\end{pmatrix},
+\quad
+\vec{b} =
+\begin{pmatrix}
+1 \\
+0
+\end{pmatrix}
+```
+
+Then:
+
+```math
+\vec{a} \cdot \vec{b}
+=
+3
+```
+
+and:
+
+```math
+\vec{b} \cdot \vec{b}
+=
+1
+```
+
+So:
+
+```math
+\text{proj}_{\vec{b}}(\vec{a})
+=
+3
+\begin{pmatrix}
+1 \\
+0
+\end{pmatrix}
+=
+\begin{pmatrix}
+3 \\
+0
+\end{pmatrix}
+```
+
+This means the projection of `(3, 4)` onto the x-axis is `(3, 0)`.
+
+In Python:
+
+```python
+a = np.array([3, 4])
+b = np.array([1, 0])
+
+projection = (np.dot(a, b) / np.dot(b, b)) * b
+
+print(projection)
+```
+
+Projections are used in:
+
+- least squares,
+- regression,
+- PCA,
+- dimensionality reduction,
+- vector search.
+
+---
+
+## Rank
+
+The **rank** of a matrix tells us how many independent directions are contained in the matrix.
+
+A matrix has full rank if none of its rows or columns are redundant.
+
+Example:
+
+```math
+A =
+\begin{pmatrix}
+1 & 2 \\
+2 & 4
+\end{pmatrix}
+```
+
+The second row is just twice the first row.
+
+So this matrix does not contain two independent rows. Its rank is `1`.
+
+Another example:
+
+```math
+B =
+\begin{pmatrix}
+1 & 0 \\
+0 & 1
+\end{pmatrix}
+```
+
+Both rows are independent, so the rank is `2`.
+
+In Python:
+
+```python
+A = np.array([[1, 2], [2, 4]])
+B = np.array([[1, 0], [0, 1]])
+
+print(np.linalg.matrix_rank(A))
+print(np.linalg.matrix_rank(B))
+```
+
+Rank is important because it tells us whether a system has redundant information.
+
+In machine learning, rank is connected to:
+
+- feature independence,
+- low-rank approximation,
+- dimensionality reduction,
+- model compression,
+- matrix factorization.
+
+---
+
+## Positive Definite Matrices
+
+A symmetric matrix `A` is **positive definite** if:
+
+```math
+\vec{x}^T A \vec{x} > 0
+```
+
+for every nonzero vector `x`.
+
+Positive definite matrices are important because they behave nicely in optimization.
+
+For example:
+
+```math
+A =
+\begin{pmatrix}
+2 & 0 \\
+0 & 3
+\end{pmatrix}
+```
+
+For any nonzero vector:
+
+```math
+\vec{x} =
+\begin{pmatrix}
+x_1 \\
+x_2
+\end{pmatrix}
+```
+
+we get:
+
+```math
+\vec{x}^T A \vec{x}
+=
+2x_1^2 + 3x_2^2
+```
+
+This is always positive unless `x` is the zero vector.
+
+Therefore, `A` is positive definite.
+
+In Python, one way to check positive definiteness is to look at the eigenvalues.
+
+```python
+A = np.array([[2, 0], [0, 3]])
+
+eigenvalues = np.linalg.eigvals(A)
+
+print(eigenvalues)
+print(np.all(eigenvalues > 0))
+```
+
+For a symmetric matrix, if all eigenvalues are positive, the matrix is positive definite.
+
+Positive definite matrices appear in:
+
+- covariance matrices,
+- optimization,
+- second-order methods,
+- Gaussian distributions,
+- kernel methods.
+
+---
+
+## Why Linear Algebra Matters in Machine Learning
+
+Linear algebra is everywhere in machine learning.
+
+A dataset is often represented as a matrix:
+
+```math
+X \in \mathbb{R}^{n \times d}
+```
+
+where:
+
+- `n` is the number of examples,
+- `d` is the number of features.
+
+A neural network layer is often written as:
+
+```math
+Y = XW + b
+```
+
+Attention uses matrix multiplication:
+
+```math
+\text{Attention}(Q, K, V)
+=
+\text{softmax}
+\left(
+\frac{QK^T}{\sqrt{d_k}}
+\right)
+V
+```
+
+Embeddings are vectors.  
+Images are tensors.  
+Optimization uses gradients.  
+Dimensionality reduction uses eigenvectors and singular values.
+
+So, when we study linear algebra, we are not just learning abstract mathematics. We are learning the language used to describe modern AI systems.
+
+---
+
+## Summary
+
+In this article, we covered the basic building blocks of linear algebra:
+
+- scalars,
+- vectors,
+- matrices,
+- tensors,
+- matrix operations,
+- dot products,
+- norms,
+- distances,
+- linear transformations,
+- eigenvalues and eigenvectors,
+- matrix factorization,
+- SVD,
+- orthogonality,
+- projections,
+- rank,
+- positive definite matrices.
+
+These concepts form the foundation for many machine learning algorithms.
+
+In Part II, we will go deeper into how these ideas appear directly in machine learning models, including linear regression, PCA, embeddings, and neural networks.
+
+---
+
+## References for Further Study
+
+- Gilbert Strang, *Introduction to Linear Algebra*
+- David C. Lay, *Linear Algebra and Its Applications*
+- Goodfellow, Bengio, and Courville, *Deep Learning*
+- Mathematics for Machine Learning by Deisenroth, Faisal, and Ong

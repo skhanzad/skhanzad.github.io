@@ -28,12 +28,27 @@ function normalizeTags(raw: unknown): string[] {
   return [];
 }
 
+/** YAML often parses `date: 2026-06-08` as a Date, not a string. */
+function normalizeDate(raw: unknown): string {
+  if (raw instanceof Date && !Number.isNaN(raw.getTime())) {
+    return raw.toISOString();
+  }
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const d = new Date(raw);
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  if (typeof raw === "string" && raw.trim()) {
+    const d = new Date(raw.trim());
+    if (!Number.isNaN(d.getTime())) return d.toISOString();
+  }
+  return new Date(0).toISOString();
+}
+
 function parseFrontmatter(data: Record<string, unknown>): BlogFrontmatter {
   const title = typeof data.title === "string" ? data.title : "Untitled";
   const description =
     typeof data.description === "string" ? data.description : "";
-  const date =
-    typeof data.date === "string" ? data.date : new Date(0).toISOString();
+  const date = normalizeDate(data.date);
   const tags = normalizeTags(data.tags);
   const published =
     data.published === undefined ? true : Boolean(data.published);
