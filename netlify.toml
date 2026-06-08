@@ -1,3 +1,17 @@
-# Next.js on Netlify — https://docs.netlify.com/frameworks/next-js/overview/
+# Next.js on Netlify
+# https://docs.netlify.com/frameworks/next-js/overview/
+
+[build]
+  command = "npm run build"
+
+[build.environment]
+  # Match local tooling; Tina + Next 15 expect a current Node LTS.
+  NODE_VERSION = "20"
+
+# IMPORTANT: In the Netlify UI (Site configuration → Build & deploy → Continuous deployment),
+# leave "Publish directory" EMPTY. Do NOT set it to `.next` — that breaks the Next.js runtime
+# plugin and commonly causes failed deploys. This file does not set `publish` so the plugin
+# can control output.
+
 [[plugins]]
   package = "@netlify/plugin-nextjs"
