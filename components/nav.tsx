@@ -25,6 +25,7 @@ export default function Nav({ isDark = false }: NavProps) {
     { name: "Work", href: "/#work" },
     { name: "Research", href: "/#research" },
     { name: "Blog", href: "/blog" },
+    { name: "Subscribe", href: "/subscribe" },
     { name: "Contact", href: "/#contact" },
   ];
 

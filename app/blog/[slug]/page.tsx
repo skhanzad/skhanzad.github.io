@@ -5,7 +5,12 @@ import { compileMDX } from "next-mdx-remote/rsc";
 import remarkGfm from "remark-gfm";
 import rehypePrettyCode from "rehype-pretty-code";
 import { getPostBySlug, getPublishedSlugs } from "@/lib/blog";
-import { SUBSTACK_URL } from "@/lib/site";
+import {
+  DEFAULT_OG_IMAGE_PATH,
+  SITE_NAME,
+  SUBSTACK_URL,
+  getSiteUrl,
+} from "@/lib/site";
 import { createMdxComponents } from "@/components/blog/mdx-components";
 
 type Props = { params: Promise<{ slug: string }> };
@@ -20,19 +25,40 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!post) {
     return { title: "Post not found" };
   }
+
+  const site = getSiteUrl();
+  const url = `${site}/blog/${slug}`;
+  const ogImage = {
+    url: DEFAULT_OG_IMAGE_PATH,
+    width: 512,
+    height: 512,
+    alt: post.title,
+  };
+
   return {
-    title: `${post.title} | Sourena Khanzadeh`,
+    title: post.title,
     description: post.description,
+    keywords: post.tags,
+    authors: [{ name: SITE_NAME, url: site }],
+    alternates: { canonical: url },
     openGraph: {
       title: post.title,
       description: post.description,
       type: "article",
+      url,
+      siteName: SITE_NAME,
+      locale: "en_US",
       publishedTime: post.date,
+      modifiedTime: post.date,
+      authors: [SITE_NAME],
+      tags: post.tags,
+      images: [ogImage],
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
       description: post.description,
+      images: [`${site}${DEFAULT_OG_IMAGE_PATH}`],
     },
   };
 }
@@ -109,7 +135,7 @@ export default async function BlogPostPage({ params }: Props) {
           )}
         </header>
 
-        <div className="mdx-content">{content}</div>
+        <div className="mdx-content text-[var(--foreground)]">{content}</div>
       </article>
 
       <aside

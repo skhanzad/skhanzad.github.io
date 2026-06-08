@@ -1,13 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getPublishedPosts } from "@/lib/blog";
+import { getSiteUrl } from "@/lib/site";
 
 export const metadata: Metadata = {
-  title: "Blog | Sourena Khanzadeh",
+  title: "Blog",
   description: "Writing on AI systems, software engineering, and research.",
   openGraph: {
-    title: "Blog | Sourena Khanzadeh",
+    title: "Blog",
     description: "Writing on AI systems, software engineering, and research.",
+    type: "website",
+    url: "/blog",
+  },
+  alternates: {
+    canonical: `${getSiteUrl()}/blog`,
+    types: {
+      "application/rss+xml": "/feed.xml",
+    },
   },
 };
 
@@ -34,6 +43,14 @@ export default function BlogIndexPage() {
         </h1>
         <p className="mt-3 text-lg text-[var(--foreground)]/75">
           Notes on building reliable AI systems and turning research into products.
+        </p>
+        <p className="mt-4">
+          <a
+            href="/feed.xml"
+            className="text-sm font-medium text-purple-600 underline decoration-purple-500/30 underline-offset-2 hover:text-purple-700 dark:text-purple-400 dark:hover:text-purple-300"
+          >
+            RSS feed
+          </a>
         </p>
       </header>
 

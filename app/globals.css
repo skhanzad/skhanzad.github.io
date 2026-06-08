@@ -27,6 +27,24 @@ body {
   scroll-behavior: smooth;
 }
 
+.mdx-content figure {
+  margin: 2rem 0;
+}
+
+.mdx-content [data-rehype-pretty-code-figure] {
+  margin: 2rem 0;
+}
+
+.mdx-content [data-rehype-pretty-code-figure] pre {
+  margin: 0;
+  border: none;
+  border-radius: 0.75rem;
+}
+
+.mdx-content [data-line] {
+  padding-right: 1rem;
+}
+
 /* @variant dark {
   body {
     background: #000000;
