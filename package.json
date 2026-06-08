@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "tinacms dev -c \"next dev --turbopack\"",
-    "build": "node scripts/tina-build.mjs && next build",
+    "dev": "node_modules/.bin/tinacms dev -c \"next dev --turbopack\"",
+    "dev:alt": "node_modules/.bin/tinacms dev -p 14002 --datalayer-port 19002 -c \"next dev --turbopack\"",
+    "build": "node_modules/.bin/tinacms build && next build",
     "start": "next start",
     "lint": "eslint"
   },

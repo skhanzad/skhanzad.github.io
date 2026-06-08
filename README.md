@@ -28,12 +28,16 @@ Set **`NEXT_PUBLIC_SITE_URL`** to your canonical site origin in production (for 
 
 ### TinaCMS (MDX admin)
 
-- **Config:** `tina/config.ts` — collection **Blog posts** → `content/blog` (`.mdx`), fields: title, description, date, tags, published, body.
+- **Config:** `tina/config.ts` — collection **Blog posts** → `content/blog` (`.mdx`), fields: title, description, date, tags, published, body. **Branch** resolves from `GITHUB_BRANCH`, **`BRANCH`** (Netlify), `VERCEL_GIT_COMMIT_REF`, `HEAD`, then defaults to **`main`** — set your default branch in Git/Tina Cloud accordingly.
 - **Admin UI:** [http://localhost:3000/admin](http://localhost:3000/admin) (redirects to `/admin/index.html`) after `npm run dev` or `npm run build`.
-- **Dev:** `npm run dev` runs `tinacms dev` plus Next.js (Tina GraphQL on port **4001** by default).
-- **Build + dev together:** `npm run build` uses Tina local ports **14001** / **19000** so it does not collide with `tinacms dev` on **4001** / **9000**.
-- **Production:** Create a project on [Tina Cloud](https://tina.io/docs/tina-cloud/overview), then set **`NEXT_PUBLIC_TINA_CLIENT_ID`** and **`TINA_TOKEN`** on your host. With those set, `npm run build` uses a cloud-backed client so the deployed admin can load and save content. Without them, the build still succeeds using a **local** client (fine for the public site; the hosted admin will not connect until Cloud is configured).
-- Generated output (`public/admin/`, `tina/__generated__/`) is gitignored and recreated on each dev/build.
+- **Scripts:** `npm run dev` / `npm run build` run **`node_modules/.bin/tinacms`** (from **`@tinacms/cli`**) so the CLI always loads **this repo’s** `tinacms` dependency when bundling `tina/config.ts`. Avoid **`npx @tinacms/cli`** alone — it can run a **cached** CLI without your `tinacms` package and fails with “Could not resolve tinacms”.
+- **CLI:** Use **`npm run dev`** / **`npm run build`** so `tinacms` comes from `node_modules/.bin` (`@tinacms/cli`). Plain **`npx tinacms`** often fails (“could not determine executable to run”); use **`npx --no-install @tinacms/cli …`** only if you must invoke the CLI by hand.
+- **Port 9000 / “Datalayer server is busy”:** Another `tinacms dev` is running. Stop it (**Ctrl+C**) or use **`npm run dev:alt`** (Tina on **14002** / **19002**).
+- **`npm run build` while `npm run dev` runs:** Stop dev first — both use Tina’s default ports (**4001** / **9000**) and will conflict.
+- **“Index version … Reindex” / `GetCollection` errors:** Tina Cloud needs a **full** `tinacms build` with your **Cloud env** so indexes update. Then **commit and push** `tina/tina-lock.json` (see below). You can also use **Tina Cloud → project → Reindex** if the dashboard offers it.
+- **Production:** [Tina Cloud](https://tina.io/docs/tina-cloud/overview) — set **`NEXT_PUBLIC_TINA_CLIENT_ID`** and **`TINA_TOKEN`** on your host. Without them, `tinacms build` still runs locally for admin assets; Cloud admin stays disconnected until configured.
+- **Generated (gitignored):** `public/admin/`, `tina/__generated__/` — recreated on dev/build.
+- **Committed:** `tina/config.ts`, **`tina/tina-lock.json`** (schema lock for Tina Cloud — **not** gitignored).
 
 Copy `.env.example` to `.env.local` and fill in values as needed.
 
@@ -41,9 +45,8 @@ Copy `.env.example` to `.env.local` and fill in values as needed.
 
 1. **Publish directory:** In the Netlify UI, open **Site configuration → Build & deploy** and clear **Publish directory** (leave it blank). Setting it to **`.next`** breaks [`@netlify/plugin-nextjs`](https://docs.netlify.com/frameworks/next-js/overview/) and often fails the deploy. Your logs still showed `publish: .../.next` from the UI — remove it there so `publishOrigin` is not `ui`.
 2. **Build command:** `npm run build` (set in `netlify.toml`).
-3. **Node / memory:** The site sets **`NODE_OPTIONS=--max-old-space-size=6144`** in `netlify.toml` so Tina Cloud’s `tinacms build` is less likely to hit **JavaScript heap out of memory** on the default ~2GB limit.
-4. **Tina indexing:** `tinacms build` runs with **`--skip-indexing`** and **`--skip-search-index`** to lower memory use for this small blog.
-5. **Environment:** Set `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_TINA_CLIENT_ID`, and `TINA_TOKEN` as needed.
+3. **Node / memory:** `netlify.toml` sets **`NODE_OPTIONS=--max-old-space-size=6144`** so **`tinacms build`** (with Tina Cloud indexing) is less likely to OOM.
+4. **Environment:** Set `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_TINA_CLIENT_ID`, and `TINA_TOKEN` as needed.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
