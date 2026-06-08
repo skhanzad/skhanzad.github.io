@@ -39,10 +39,11 @@ Copy `.env.example` to `.env.local` and fill in values as needed.
 
 ## Deploy on Netlify
 
-1. **Publish directory:** In the Netlify UI, open **Site configuration → Build & deploy** and clear **Publish directory** (leave it blank). Setting it to **`.next`** conflicts with [`@netlify/plugin-nextjs`](https://docs.netlify.com/frameworks/next-js/overview/) and is a common cause of failed builds.
-2. **Build command:** `npm run build` (already set in `netlify.toml`).
-3. **Node:** The repo pins **Node 20** via `.nvmrc` and `netlify.toml` `[build.environment]`.
-4. **Environment:** Set `NEXT_PUBLIC_SITE_URL` to your live site URL (and Tina Cloud vars if you use production Tina).
+1. **Publish directory:** In the Netlify UI, open **Site configuration → Build & deploy** and clear **Publish directory** (leave it blank). Setting it to **`.next`** breaks [`@netlify/plugin-nextjs`](https://docs.netlify.com/frameworks/next-js/overview/) and often fails the deploy. Your logs still showed `publish: .../.next` from the UI — remove it there so `publishOrigin` is not `ui`.
+2. **Build command:** `npm run build` (set in `netlify.toml`).
+3. **Node / memory:** The site sets **`NODE_OPTIONS=--max-old-space-size=6144`** in `netlify.toml` so Tina Cloud’s `tinacms build` is less likely to hit **JavaScript heap out of memory** on the default ~2GB limit.
+4. **Tina indexing:** `tinacms build` runs with **`--skip-indexing`** and **`--skip-search-index`** to lower memory use for this small blog.
+5. **Environment:** Set `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_TINA_CLIENT_ID`, and `TINA_TOKEN` as needed.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

@@ -11,11 +11,13 @@ const hasCloud =
 
 /** Ports 4001/9000 are used by `tinacms dev`; local build uses others so build can run alongside dev. */
 const localArgs =
-  " build --local --skip-cloud-checks --noTelemetry -p 14001 --datalayer-port 19000";
+  " build --local --skip-cloud-checks --noTelemetry --skip-indexing --skip-search-index -p 14001 --datalayer-port 19000";
 
-const cmd = hasCloud
-  ? "tinacms build --skip-cloud-checks --noTelemetry"
-  : `tinacms${localArgs}`;
+/** Indexing is heavy on memory; safe to skip for this small MDX blog. */
+const cloudArgs =
+  " build --skip-cloud-checks --noTelemetry --skip-indexing --skip-search-index";
+
+const cmd = hasCloud ? `tinacms${cloudArgs}` : `tinacms${localArgs}`;
 
 console.log(
   hasCloud

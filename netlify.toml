@@ -7,11 +7,13 @@
 [build.environment]
   # Match local tooling; Tina + Next 15 expect a current Node LTS.
   NODE_VERSION = "20"
+  # Tina Cloud `tinacms build` can exceed the default ~2GB V8 heap on Netlify builders.
+  NODE_OPTIONS = "--max-old-space-size=6144"
 
-# IMPORTANT: In the Netlify UI (Site configuration → Build & deploy → Continuous deployment),
-# leave "Publish directory" EMPTY. Do NOT set it to `.next` — that breaks the Next.js runtime
-# plugin and commonly causes failed deploys. This file does not set `publish` so the plugin
-# can control output.
+# IMPORTANT:
+# 1) Netlify UI → leave "Publish directory" EMPTY (do NOT use `.next`). If the build log shows
+#    `publish: .../.next` and `publishOrigin: ui`, clear that field in the dashboard.
+# 2) Tina Cloud builds need a larger heap on small builders — see NODE_OPTIONS below.
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
