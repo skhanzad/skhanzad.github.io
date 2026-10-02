@@ -84,8 +84,10 @@ export function initNav({ lenis, onScroll }) {
     );
   };
   document.querySelectorAll('[data-chapter]').forEach((section) => {
+    // A pinned section scrolls for longer than its own height: track its spacer.
+    const spacer = section.parentElement?.classList.contains('pin-spacer') ? section.parentElement : null;
     ScrollTrigger.create({
-      trigger: section,
+      trigger: spacer || section,
       start: 'top 50%',
       end: 'bottom 50%',
       onToggle: (self) => self.isActive && setActive(section.dataset.chapter),

@@ -1,0 +1,30 @@
+name: Serve site
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  serve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start HTTP server
+        run: python3 -m http.server 8080 &
+
+      - name: Wait for server
+        run: |
+          for i in $(seq 1 20); do
+            if curl -fsS "http://127.0.0.1:8080/" >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Server did not respond"
+          exit 1
+
+      - name: Fetch homepage
+        run: curl -fsSI "http://127.0.0.1:8080/"
