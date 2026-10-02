@@ -1,3 +1,5 @@
+import ExpertiseChart from './ExpertiseChart.jsx';
+
 const domains = [
   {
     name: 'Distributed systems',
@@ -36,18 +38,7 @@ export default function Thread() {
           <p className="expertise__intro" data-reveal="">My work connects software infrastructure, security research and intelligent agents. These are the skills I bring from research into engineering.</p>
         </header>
 
-        <div className="expertise__grid">
-          {domains.map(({ name, description, skills }, index) => (
-            <article className="expertise__domain" key={name} data-reveal="">
-              <p className="expertise__index" aria-hidden="true">{String(index + 1).padStart(2, '0')}</p>
-              <h3 className="expertise__title">{name}</h3>
-              <p className="expertise__description">{description}</p>
-              <ul className="expertise__skills" aria-label={`${name} skills`}>
-                {skills.map((skill) => <li key={skill}>{skill}</li>)}
-              </ul>
-            </article>
-          ))}
-        </div>
+        <ExpertiseChart domains={domains} />
       </div>
     </section>
   );
