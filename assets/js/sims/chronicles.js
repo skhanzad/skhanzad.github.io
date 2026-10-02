@@ -143,7 +143,7 @@ const QUESTIONS = [
     short: 'Move appointment',
     text: 'Can I move my appointment to Friday?',
     claims: [
-      claim('health', 'appt', ['time', 'notice'], (v) => `appointment ${v['health.appt.time']}; moving needs ${v['health.appt.notice']} notice`, 'notice'),
+      claim('health', 'appt', ['time', 'notice'], (v) => `appointment ${v['health.appt.time']}, ${v['health.appt.notice']} notice to move`, 'notice'),
       claim('calendar', 'week', ['free'], (v) => (v['calendar.week.free'] === 'none' ? 'Friday: fully booked' : `Friday free ${v['calendar.week.free']}`), 'free'),
     ],
     answer({ get, c }) {
@@ -320,6 +320,7 @@ export function create({ stage, panel, reduced }) {
   let run = null;
   let narration = null;
   let hover = null;
+  let asked = false;
   const L = { hit: {} };
 
   const selected = () => QUESTIONS[params.q];
@@ -400,6 +401,7 @@ export function create({ stage, panel, reduced }) {
 
   function ask() {
     if (run && run.phase !== 'done') return;
+    asked = true;
     tip.hide();
     const q = selected();
     const r = rng(seed * 977 + params.q * 131 + 17);
@@ -717,7 +719,7 @@ export function create({ stage, panel, reduced }) {
       run.know[k] = { v: item.altered === k ? world.fake[k] : world.v[k], altered: item.altered === k };
     }
     run.stats.dumps++;
-    addRow({ id: '', kind: 'dump', h, src: ar.name, text: `${ar.name} · ${plural(ar.keys.length, 'field')}`, status: 'unverified', altered: !!item.altered });
+    addRow({ id: '', kind: 'dump', h, src: ar.name, text: ar.name, fields: ar.keys.length, status: 'unverified', altered: !!item.altered });
     const leaked = FIELDS.filter((f) => f.sensitive && run.exposed.has(f.key) && !run.needed.has(f.key)).map((f) => f.name);
     if (!run.said.dump && leaked.length >= 2 && !item.altered) {
       run.said.dump = true;
@@ -916,7 +918,7 @@ export function create({ stage, panel, reduced }) {
       const done = run.phase === 'done';
       out.set('exposed', String(exposed), exposed > needed ? 'bad' : exposed ? 'ok' : '');
       if (naive) out.set('verified', s.dumps ? '0' : '—', s.dumps ? 'bad' : '');
-      else out.set('verified', s.rejected ? `${s.verified} · ${s.rejected} ✗` : String(s.verified), s.verified ? 'ok' : '');
+      else out.set('verified', String(s.verified), s.verified ? 'ok' : '');
       out.set('tamper', s.tampered ? `${s.caught} of ${s.tampered}` : '—', !s.tampered ? '' : s.caught === s.tampered ? 'ok' : naive ? 'bad' : 'warn');
       out.set('blocked', s.asked ? `${s.blocked} of ${s.asked}` : '—', !s.asked ? '' : s.blocked === s.asked ? 'ok' : naive && done ? 'bad' : 'warn');
       let raw = '—';
@@ -970,45 +972,49 @@ export function create({ stage, panel, reduced }) {
     L.w = w;
     L.h = h;
     L.compact = w < 620 || h < 480;
+    // Very short phone stages drop the hint pill and tighten every gap.
+    L.tight = L.compact && h < 430;
     const pad = Math.max(16, Math.min(40, w * 0.04));
     L.pad = pad;
     // On phones the title row starts below the hint pill.
-    L.topY = L.compact ? 50 : 52;
+    L.topY = L.tight ? 16 : L.compact ? 50 : 52;
     L.narrY = L.topY + (L.compact ? 22 : 34);
     const bottom = h - (L.compact ? 34 : 44);
     tip.set(L.compact ? 'Tap the question to ask the agent' : 'Click the question to ask the agent');
+    if (L.tight || asked) tip.hide();
+    else tip.show();
     let net;
     if (L.compact) {
       net = { x: pad, y: L.narrY + 11, w: w - pad * 2 };
-      const ph = clamp(h * 0.29, 122, 150);
+      const ph = L.tight ? clamp(h * 0.3, 106, 122) : clamp(h * 0.29, 122, 150);
       L.panel = { x: pad, y: bottom - ph, w: net.w, h: ph };
-      L.meter = { x: pad, y: L.panel.y - 36, w: net.w };
+      L.meter = { x: pad, y: L.panel.y - (L.tight ? 32 : 36), w: net.w };
     } else {
-      const colW = clamp(w * 0.34, 260, 360);
+      const colW = clamp(w * 0.37, 270, 360);
       const colX = w - pad - colW;
-      net = { x: pad, y: L.narrY + 24, w: colX - pad - 34 };
+      net = { x: pad, y: L.narrY + 24, w: colX - pad - 30 };
       L.col = { x: colX, y: net.y, w: colW, h: bottom - net.y };
-      const slotH = clamp(L.col.h * 0.3, 128, 168);
+      const slotH = clamp(L.col.h * 0.3, 140, 170);
       L.slot = { x: colX, y: bottom - slotH, w: colW, h: slotH };
       L.meter = { x: net.x, y: bottom - 48, w: net.w };
     }
     L.net = net;
-    L.bubble = { cx: net.x + net.w / 2, y: net.y, h: L.compact ? 26 : 30, maxW: net.w };
+    L.bubble = { cx: net.x + net.w / 2, y: net.y, h: L.tight ? 24 : L.compact ? 26 : 30, maxW: net.w };
     L.names = !L.compact && net.w >= 440;
-    L.rowH = L.compact ? 7 : 13;
-    L.labelGap = L.compact ? 11 : 15; // node edge to the holder's name
-    L.firstRow = L.compact ? 8 : 13; // name to its first artifact row
-    const nodeR = L.compact ? 10 : 15;
+    L.rowH = L.tight ? 6 : L.compact ? 7 : 13;
+    L.labelGap = L.tight ? 10 : L.compact ? 11 : 15; // node edge to the holder's name
+    L.firstRow = L.tight ? 7 : L.compact ? 8 : 13; // name to its first artifact row
+    const nodeR = L.tight ? 9 : L.compact ? 10 : 15;
     // The two lower holders carry the deepest tables below the arc.
     const rowsLow = Math.max(HOLDERS[1].artifacts.length, HOLDERS[2].artifacts.length);
     const tableH = nodeR + L.labelGap + L.firstRow + (rowsLow - 1) * L.rowH + 5;
     const top = L.bubble.y + L.bubble.h;
-    const lead = L.compact ? 28 : 72; // bubble to agent
+    const lead = L.tight ? 26 : L.compact ? 28 : 72; // bubble to agent
     const room = L.meter.y - (L.compact ? 8 : 26) - top - lead - tableH;
     const rx = net.w * (L.compact ? 0.4 : 0.41);
-    const ry = clamp(room / Math.sin(ARC[1]), 40, rx * (L.compact ? 0.62 : 0.95));
+    const ry = clamp(room / Math.sin(ARC[1]), 34, rx * (L.compact ? 0.62 : 0.95));
     const slack = Math.max(0, room - ry * Math.sin(ARC[1]));
-    L.agent = { x: L.bubble.cx, y: top + lead + slack * 0.5, r: L.compact ? 13 : 20 };
+    L.agent = { x: L.bubble.cx, y: top + lead + slack * 0.5, r: L.tight ? 12 : L.compact ? 13 : 20 };
     L.holders = ARC.map((t) => ({ x: L.agent.x + Math.cos(t) * rx, y: L.agent.y + Math.sin(t) * ry, r: nodeR }));
     L.edges = L.holders.map((n) => {
       const a = L.agent;
@@ -1318,14 +1324,18 @@ export function create({ stage, panel, reduced }) {
     const b = L.bubble;
     const q = run ? run.q : selected();
     const busy = run && run.phase !== 'done';
-    const chip = busy ? (run.pending ? 'waiting' : 'asking') : run ? 'ask again ▸' : 'ask ▸';
     const size = L.compact ? 11 : 12.5;
     const tagO = { size: 9.5, upper: true, track: 1.4 };
     const chipO = { size: 9.5, upper: true, track: 1.2 };
-    const tagW = L.compact ? 0 : tracked('you', tagO) + 12;
-    const chipW = tracked(chip, chipO) + 18;
     const textW = textWidth(ctx, `“${q.text}”`, { size });
-    const bw = Math.min(b.maxW, 16 + tagW + textW + 14 + chipW + 6);
+    // Where room is short, drop the speaker tag first, then the long chip.
+    let chip = busy ? (run.pending ? 'waiting' : 'asking') : run ? 'ask again ▸' : 'ask ▸';
+    let tagW = tracked('you', tagO) + 12;
+    const need = () => 16 + tagW + textW + 14 + tracked(chip, chipO) + 24;
+    if (need() > b.maxW) tagW = 0;
+    if (need() > b.maxW && run && !busy) chip = 'ask ▸';
+    const chipW = tracked(chip, chipO) + 18;
+    const bw = Math.min(b.maxW, need());
     const x = b.cx - bw / 2;
     const clickable = !busy;
     const hot = clickable && hover === 'ask';
@@ -1494,8 +1504,11 @@ export function create({ stage, panel, reduced }) {
     label(ctx, 'Agent’s answer', s.x + px, hy, { size: L.compact ? 9.5 : 10.5, upper: true, track: 1.4, color: done ? (naive ? C.ember : C.gold) : INK[3] });
     if (done) {
       const sources = run.stats.verified + (run.raw.state === 'released' ? 1 : 0);
-      const tag = naive ? 'no sources' : `${plural(sources, 'source')} verified`;
-      label(ctx, tag, s.x + s.w - px, hy, { size: 9.5, align: 'right', upper: true, track: 1, color: ok ? C.gold : C.ember });
+      const to = { size: 9.5, align: 'right', upper: true, track: 1, color: ok ? C.gold : C.ember };
+      const room = s.w - px * 2 - tracked('Agent’s answer', { size: L.compact ? 9.5 : 10.5, upper: true, track: 1.4 }) - 14;
+      let tag = naive ? 'no sources' : `${plural(sources, 'source')} verified`;
+      if (tracked(tag, to) > room) tag = naive ? 'none' : `${sources} verified`;
+      if (tracked(tag, to) <= room) label(ctx, tag, s.x + s.w - px, hy, to);
     }
     const maxW = s.w - px * 2;
     const top = hy + (L.compact ? 16 : 22);
@@ -1517,10 +1530,10 @@ export function create({ stage, panel, reduced }) {
     }
     drawTokens(rows, s.x + px, top, size * 1.55, size);
     if (L.compact) {
-      const s2 = run.stats;
+      const links = run.ledger.filter((r) => r.status === 'ok' && r.kind !== 'root').length;
       const tail = naive
         ? `${plural(run.stats.dumps, 'raw record')} · nothing verifiable`
-        : `ledger: ${s2.verified} verified${s2.rejected ? ` · ${s2.rejected} rejected` : ''} · head ${run.head.slice(0, 8)}`;
+        : `ledger: ${links} verified${run.stats.rejected ? ` · ${run.stats.rejected} rejected` : ''} · head ${run.head.slice(0, 8)}`;
       label(ctx, tail, s.x + px, s.y + s.h - 12, { size: 9.5, color: naive ? C.ember : INK[3] });
     }
   }
@@ -1532,13 +1545,21 @@ export function create({ stage, panel, reduced }) {
     const px = L.compact ? 14 : 16;
     const hy = s.y + (L.compact ? 18 : 22);
     label(ctx, `Holder approval · ${HOLDERS[h].name}`, s.x + px, hy, { size: L.compact ? 9.5 : 10.5, upper: true, track: 1.4, color: C.amber });
-    const size = L.compact ? 11 : 12;
-    const msg = `The agent asks for the raw ${ar.doc}: ${list(ar.keys.map((x) => FIELD[x].name))}. It leaves only if you approve.`;
-    const bh = L.compact ? 30 : 32;
-    const rows = wrap(msg, s.w - px * 2, { size });
-    const maxRows = Math.max(1, Math.floor((s.h - (hy - s.y) - bh - 26) / (size * 1.5)));
-    rows.slice(0, maxRows).forEach((r, i) => label(ctx, r, s.x + px, hy + 20 + i * size * 1.5, { size, baseline: 'middle', color: C.cream }));
-    const by = s.y + s.h - bh - (L.compact ? 12 : 16);
+    const bh = L.tight ? 28 : L.compact ? 30 : 32;
+    const by = s.y + s.h - bh - (L.tight ? 10 : L.compact ? 12 : 16);
+    // The request in plain words; the closing sentence goes first if room is short.
+    const head = `The agent asks for the raw ${ar.doc}: ${list(ar.keys.map((x) => FIELD[x].name))}.`;
+    let size = L.compact ? 11 : 12;
+    let rows;
+    let fit;
+    for (;;) {
+      fit = Math.max(1, Math.floor((by - 6 - (hy + 20 - size * 0.75)) / (size * 1.5)));
+      rows = wrap(`${head} It leaves only if you approve.`, s.w - px * 2, { size });
+      if (rows.length > fit) rows = wrap(head, s.w - px * 2, { size });
+      if (rows.length <= fit || size <= 9.5) break;
+      size -= 0.5;
+    }
+    rows.slice(0, fit).forEach((r, i) => label(ctx, r, s.x + px, hy + 20 + i * size * 1.5, { size, baseline: 'middle', color: C.cream }));
     const aw = Math.min(150, (s.w - px * 2 - 10) * 0.56);
     canvasButton('approve', s.x + px, by, aw, bh, 'Approve', true);
     canvasButton('deny', s.x + px + aw + 10, by, Math.min(110, s.w - px * 2 - aw - 10), bh, 'Deny', false);
@@ -1567,9 +1588,11 @@ export function create({ stage, panel, reduced }) {
         roundRect(ctx, c.x, y - 4.5, 7, 9, 1.5);
         ctx.fillStyle = alpha(C.ember, 0.85);
         ctx.fill();
-        label(ctx, ellipsize(`${HOLDERS[row.h].short.toUpperCase()} · ${row.text}`, c.w - 110, { size: 10.5 }), c.x + 16, y, { size: 10.5, baseline: 'middle', color: INK[2] });
-        if (row.altered) brokenLink(c.x + c.w - 84, y, C.ember);
-        label(ctx, 'unverified', c.x + c.w, y, { size: 10, align: 'right', baseline: 'middle', color: INK[3] });
+        const right = `${plural(row.fields, 'field')} · no hash`;
+        const rw = textWidth(ctx, right, { size: 10 });
+        label(ctx, right, c.x + c.w, y, { size: 10, align: 'right', baseline: 'middle', color: INK[3] });
+        if (row.altered) brokenLink(c.x + c.w - rw - 14, y, C.ember);
+        label(ctx, ellipsize(`${HOLDERS[row.h].short.toUpperCase()} · ${row.text}`, c.w - rw - 46, { size: 10.5 }), c.x + 16, y, { size: 10.5, baseline: 'middle', color: INK[2] });
         ctx.globalAlpha = 1;
       });
       label(ctx, `${plural(rows.length, 'raw record')} · no source, time or hash`, c.x, top + shown.length * rh + 12, { size: 10, color: C.ember });
@@ -1641,6 +1664,7 @@ export function create({ stage, panel, reduced }) {
     const top = hy + 18;
     const fit = Math.max(1, Math.floor((s.y + s.h - 10 - top) / rh) + 1);
     const rows = run.ledger.slice(-fit);
+    if (!rows.length) label(ctx, 'Raw records will land here, unattributed.', s.x + px, top, { size: 10, baseline: 'middle', color: INK[3] });
     rows.forEach((row, i) => {
       const y = top + i * rh;
       const x = s.x + px;
@@ -1649,16 +1673,18 @@ export function create({ stage, panel, reduced }) {
         roundRect(ctx, x, y - 4, 6, 8, 1.2);
         ctx.fillStyle = alpha(C.ember, 0.85);
         ctx.fill();
-        label(ctx, ellipsize(`${HOLDERS[row.h].short} · ${row.text}`, s.w - px * 2 - 90, o), x + 13, y, { ...o, color: INK[2] });
-        if (row.altered) brokenLink(x + s.w - px * 2 - 70, y, C.ember);
-        label(ctx, 'unverified', s.x + s.w - px, y, { ...o, align: 'right', color: INK[3] });
+        const right = `${plural(row.fields, 'field')} · no hash`;
+        const rw = textWidth(ctx, right, o);
+        label(ctx, right, s.x + s.w - px, y, { ...o, align: 'right', color: INK[3] });
+        if (row.altered) brokenLink(s.x + s.w - px - rw - 13, y, C.ember);
+        label(ctx, ellipsize(`${HOLDERS[row.h].short} · ${row.text}`, s.w - px * 2 - rw - 42, o), x + 13, y, { ...o, color: INK[2] });
         return;
       }
       const st = row.status;
       const tone = st === 'bad' ? C.ember : st === 'checking' ? C.amber : st === 'withheld' ? INK[3] : C.gold;
       label(ctx, row.id, x, y, { ...o, weight: 500, color: tone });
       if (st === 'checking') dot(ctx, x + 24, y, 2, C.amber);
-      else mark(st === 'ok' ? 'ok' : st === 'bad' ? 'bad' : 'none', x + 24, y, tone, 3);
+      else if (row.kind !== 'root') mark(st === 'ok' ? 'ok' : st === 'bad' ? 'bad' : 'none', x + 24, y, tone, 3);
       label(ctx, st === 'withheld' ? '--------' : row.digest.slice(0, 8), x + 34, y, { ...o, color: INK[3] });
       const tx = x + 34 + textWidth(ctx, '00000000', o) + 10;
       const text = ellipsize(row.text, s.x + s.w - px - tx, o);

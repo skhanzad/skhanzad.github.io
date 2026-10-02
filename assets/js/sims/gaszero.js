@@ -224,7 +224,7 @@ const TEMPLATES = [
       };
     },
     flag: [0, 2],
-    find: ['it copies the array into memory and writes storage on every pass', 'storage write every pass'],
+    find: ['a memory copy, and a storage write on every pass', 'storage write every pass'],
     idea: ['read calldata in place and sum into a local, writing storage once', 'sum locally, write once'],
     wrong: [
       { line: 3, idea: ['sum into a local inside unchecked, writing storage once', 'unchecked local sum'], when: 'the sum overflows' },
@@ -302,7 +302,7 @@ const TEMPLATES = [
       };
     },
     flag: [1, 2],
-    find: ['it spends two storage slots on two 128-bit values', 'two slots, two writes'],
+    find: ['two storage slots for two 128-bit values', 'two slots, two writes'],
     idea: ['pack both values into a single storage slot', 'pack into one slot'],
     wrong: [{ line: 1, when: 'lo is not 0' }],
     run: {
@@ -459,7 +459,7 @@ const TEMPLATES = [
       };
     },
     flag: [2],
-    find: ['it pays for checked exponentiation of a bounded power of ten', 'checked exponent'],
+    find: ['checked exponentiation of a bounded power of ten', 'checked exponent'],
     idea: ['use a custom error and an unchecked power of ten', 'unchecked power of ten'],
     wrong: [{ line: 1, when: (p) => `d is ${p.cap}` }],
     run: {
@@ -553,7 +553,7 @@ const TEMPLATES = [
       };
     },
     flag: [2],
-    find: ['it loops to answer what one bit trick can', 'loop for a bit test'],
+    find: ['a loop where one bit trick will do', 'loop for a bit test'],
     idea: ['replace the loop with the bit trick x & (x - 1)', 'bit trick'],
     wrong: [{ line: 1, when: 'x is 0' }],
     run: {
@@ -748,16 +748,16 @@ function valText(v, type) {
   return num(v, BITS[type]);
 }
 
-// "withdraw(amt=0) · bal=0": the call and the starting storage the fuzzer chose.
-function callText(f, inp) {
-  const args = f.tpl.args.map(([k, t]) => `${k}=${valText(inp.args[k], t)}`).join(', ');
+// "withdraw(amt=0) · bal=0": the call, and (unless short) the starting storage the fuzzer chose.
+function callText(f, inp, short = false) {
+  const call = `${f.tpl.name}(${f.tpl.args.map(([k, t]) => `${k}=${valText(inp.args[k], t)}`).join(', ')})`;
   const st = f.tpl.show
     ? f.tpl.show(inp, f.p)
     : f.tpl
         .state(f.p, inp.args)
         .map(([k]) => `${f.tpl.labels?.[k] ?? k}=${num(inp.state[k])}`)
         .join(', ');
-  return st ? `${f.tpl.name}(${args}) · ${st}` : `${f.tpl.name}(${args})`;
+  return st && !short ? `${call} · ${st}` : call;
 }
 
 // What one version did on an input, phrased against what the other version did.
@@ -792,6 +792,7 @@ export function create({ stage, panel, reduced }) {
   let now = 0;
   let lastFlip = 0;
   let meterShown = 0;
+  let wasFlipping = false;
   let dead = false;
   let narration = null;
   const L = { hover: -1 };
@@ -864,6 +865,7 @@ export function create({ stage, panel, reduced }) {
       edgy: z.edgy,
       cex: z.cex,
       call: callText(f, inp),
+      callShort: callText(f, inp, true),
       oa: outText(f, inp, a, b),
       ob: outText(f, inp, b, a),
     };
@@ -1002,9 +1004,12 @@ export function create({ stage, panel, reduced }) {
   // Instant mode: fuzz in slices of about 7 ms per frame so the page stays responsive.
   function instantSlice() {
     const deadline = performance.now() + 7;
-    while (batch && performance.now() < deadline) {
+    while (!batch.done && performance.now() < deadline) {
       if (!batch.cur) {
-        if (!batch.queue.length) return endBatch();
+        if (!batch.queue.length) {
+          batch.done = true; // ends once the last block has flipped
+          break;
+        }
         const f = fns[batch.queue.shift()];
         if (!f.flagged) {
           skip(f);
@@ -1023,8 +1028,8 @@ export function create({ stage, panel, reduced }) {
         batch.cur = null;
       }
     }
-    if (batch && !batch.single) {
-      const done = fns.filter((f) => f.status !== 'pending' && f.status !== 'running').length;
+    if (!batch.single) {
+      const done = fns.filter(shown).length;
       tell(`Fuzzing the whole corpus at full speed: ${done} of ${N} functions done…`, `Fuzzing the corpus: ${done} / ${N}…`, C.amber);
     }
   }
@@ -1145,7 +1150,7 @@ export function create({ stage, panel, reduced }) {
       },
     },
   ]);
-  choice(controls, {
+  const speed = choice(controls, {
     label: 'Speed',
     options: [
       { value: 1, label: 'Watch' },
@@ -1155,6 +1160,8 @@ export function create({ stage, panel, reduced }) {
     value: params.speed,
     onChange: (v) => (params.speed = v),
   });
+  // Contain the hidden radios, so focusing one cannot scroll the chamber frame on phones.
+  speed.el.style.position = 'relative';
   slider(controls, {
     label: 'Fuzz budget per function',
     min: 0,
@@ -1227,10 +1234,11 @@ export function create({ stage, panel, reduced }) {
   /* Canvas                                                           */
   /* ---------------------------------------------------------------- */
 
+  let tip = null; // created after the canvas; layout() runs once before that
   const view = stageCanvas(stage, { onResize: layout });
   const { ctx } = view;
   const stat = status(stage);
-  const tip = hint(stage, 'Click any function block to put it through the pipeline');
+  tip = hint(stage, L.compact ? 'Tap a block to test it' : 'Click any function block to put it through the pipeline');
   const ptr = pointer(view.canvas, {
     down: (p) => {
       const i = blockAt(p.x, p.y);
@@ -1250,6 +1258,7 @@ export function create({ stage, panel, reduced }) {
   function layout(v) {
     const w = v.w;
     const h = v.h;
+    const g = v.ctx;
     if (w < 80 || h < 80) return;
     const compact = w < 620 || h < 480;
     L.compact = compact;
@@ -1259,7 +1268,7 @@ export function create({ stage, panel, reduced }) {
     L.w = w - pad * 2;
     L.headY = compact ? 58 : 64;
     L.narrY = compact ? 82 : 98;
-    L.em = textWidth(ctx, '0'.repeat(20), { size: 20 }) / 400 || 0.6;
+    L.em = textWidth(g, '0'.repeat(20), { size: 20 }) / 400 || 0.6;
     const top = compact ? 96 : 120;
     const bottom = h - (compact ? 34 : 44);
 
@@ -1282,7 +1291,7 @@ export function create({ stage, panel, reduced }) {
     L.fuzz = { x: pad, y: L.code.y + Hc + (compact ? 10 : 16) + extra * 0.4, w: L.w, h: Hf };
     L.corpus = { x: pad, y: L.fuzz.y + Hf + (compact ? 12 : 24) + extra * 0.4, w: cw, cols, rows, gap, bh, head, bw: (cw - (cols - 1) * gap) / cols };
     L.meter = compact ? null : { x: pad + cw + 36, y: L.corpus.y, w: meterW, h: Hk };
-    L.names = !compact && L.corpus.bw >= textWidth(ctx, 'countAbove', { size: 9 }) + 12;
+    L.names = !compact && L.corpus.bw >= textWidth(g, 'countAbove', { size: 9 }) + 12;
 
     // Code panes: two side by side, or one diff pane on small screens.
     if (compact) {
@@ -1317,7 +1326,7 @@ export function create({ stage, panel, reduced }) {
     const cy = iy + ih / 2;
     L.fz = { ix, iw, iy, ih, src, sx, ex, execW, mx, cr, cy, y1: cy - dy, y2: cy + dy, boxH: compact ? 16 : clamp(dy * 1.15, 18, 26), gx: mx + cr + (compact ? 14 : 24) };
     L.fz.gw = ix + iw - L.fz.gx;
-    tip.set(compact ? 'Tap a block to test it' : 'Click any function block to put it through the pipeline');
+    tip?.set(compact ? 'Tap a block to test it' : 'Click any function block to put it through the pipeline');
   }
 
   function blockRect(i) {
@@ -1350,6 +1359,23 @@ export function create({ stage, panel, reduced }) {
     }
     const truth = (f.status === 'caught' || f.status === 'escaped') && (!ph || (ph === 'verdict' && (f.status === 'caught' || j.truth)));
     return { f, j, ph, settled, scanned, typed, truth };
+  }
+
+  // labelFit(), but text that still does not fit at the minimum size ends in an ellipsis.
+  function fitLabel(str, x, y, maxW, o) {
+    const min = { ...o, size: o.minSize ?? 9 };
+    let text = String(str);
+    if (textWidth(ctx, text, min) > maxW) {
+      let lo = 0;
+      let hi = text.length;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (textWidth(ctx, `${text.slice(0, mid)}…`, min) <= maxW) lo = mid;
+        else hi = mid - 1;
+      }
+      text = `${text.slice(0, lo).trimEnd()}…`;
+    }
+    labelFit(ctx, text, x, y, maxW, o);
   }
 
   /* ---- header, rail and narration ---- */
@@ -1430,7 +1456,7 @@ export function create({ stage, panel, reduced }) {
 
   function drawNarration() {
     const text = L.compact ? narration.short : narration.full;
-    labelFit(ctx, text, L.x, L.narrY, L.w, { size: L.compact ? 15 : 19, minSize: L.compact ? 10.5 : 12, font: 'serif', italic: true, color: narration.tone });
+    fitLabel(text, L.x, L.narrY, L.w, { size: L.compact ? 15 : 19, minSize: L.compact ? 10.5 : 12, font: 'serif', italic: true, color: narration.tone });
   }
 
   /* ---- code ---- */
@@ -1447,7 +1473,7 @@ export function create({ stage, panel, reduced }) {
     label(ctx, title, P.x + 14, hy, { size: L.compact ? 9 : 10, upper: true, track: 1.4, baseline: 'middle', color: INK[3] });
     if (right) {
       const tw = textWidth(ctx, title.toUpperCase(), { size: L.compact ? 9 : 10 }) + title.length * 1.4;
-      labelFit(ctx, right, P.x + P.w - 14, hy, P.w - tw - 44, { size: L.compact ? 9.5 : 10.5, minSize: 8.5, align: 'right', baseline: 'middle', color: rightColor });
+      fitLabel(right, P.x + P.w - 14, hy, P.w - tw - 44, { size: L.compact ? 9.5 : 10.5, minSize: 8.5, align: 'right', baseline: 'middle', color: rightColor });
     }
     line(ctx, P.x + 1, y + (L.compact ? 25 : 31), P.x + P.w - 1, y + (L.compact ? 25 : 31), INK.faint);
   }
@@ -1489,9 +1515,21 @@ export function create({ stage, panel, reduced }) {
     ctx.clip();
   }
 
+  // Static analysis sweeping down the source: a soft band with its edge marked in the margins.
+  function scanBeam(P, y) {
+    const h = L.font.lh * 1.8;
+    const g = ctx.createLinearGradient(0, y - h, 0, y);
+    g.addColorStop(0, alpha(C.amber, 0));
+    g.addColorStop(1, alpha(C.amber, 0.13));
+    ctx.fillStyle = g;
+    ctx.fillRect(P.x + 1, y - h, P.w - 2, h);
+    line(ctx, P.x + 1, y, P.x + 12, y, C.amber, 1.4);
+    line(ctx, P.x + P.w - 12, y, P.x + P.w - 1, y, C.amber, 1.4);
+  }
+
   function footerText(P, text, color) {
     if (!L.font.footer || !text) return;
-    labelFit(ctx, text, P.x + 14, L.code.y + L.code.h - 14, P.w - 28, { size: 10.5, minSize: 9, baseline: 'middle', color });
+    fitLabel(text, P.x + 14, L.code.y + L.code.h - 14, P.w - 28, { size: 10.5, minSize: 9, baseline: 'middle', color });
   }
 
   function verdictLine(S) {
@@ -1514,20 +1552,16 @@ export function create({ stage, panel, reduced }) {
     // Original, with the static-analysis sweep and its findings.
     paneFrame(P0, 'Original', `${fmt.int(f.gas.orig)} gas`, INK[3]);
     clipPane(P0);
+    if (ph === 'static') scanBeam(P0, y0 - lh / 2 + scanned * lines0.length * lh);
     lines0.forEach((s, i) => {
       const lit = flags.has(i) && scanned * lines0.length > i + 0.5;
       codeRow(P0, y0 + i * lh, s, { num: i + 1, band: lit ? alpha(C.amber, 0.07) : null, mark: lit ? C.amber : null, color: lit ? C.cream : INK[2] });
     });
-    if (ph === 'static') {
-      const sy = y0 - lh / 2 + scanned * lines0.length * lh;
-      line(ctx, P0.x + 1, sy, P0.x + P0.w - 1, sy, alpha(C.amber, 0.8), 1.2);
-      glow(ctx, P0.x + P0.w * (0.2 + 0.6 * scanned), sy, 34, C.amber, 0.25);
-    }
     ctx.restore();
     const scanning = ph === 'static' && scanned < 1;
     footerText(
       P0,
-      f.status === 'pending' && !ph ? '' : scanning ? 'Static analysis · scanning…' : f.flagged ? `Static analysis · ${f.tpl.find[0]}` : 'Static analysis · no gas-wasteful pattern found',
+      f.status === 'pending' && !ph ? '' : scanning ? 'Static analysis · scanning…' : f.flagged ? `Flagged · ${f.tpl.find[0]}` : 'Static analysis · no gas-wasteful pattern found',
       scanning || !f.flagged ? INK[3] : C.amber,
     );
 
@@ -1592,6 +1626,7 @@ export function create({ stage, panel, reduced }) {
     else if (f.status === 'skipped') [right, rc] = ['not flagged', INK[3]];
     paneFrame(P, typed > 0 ? 'Diff' : 'Original', right, rc);
     clipPane(P);
+    if (ph === 'static') scanBeam(P, rowsTop() + scanned * f.code.orig.length * lh);
     let y = rowsTop();
     const rows = typed > 0 ? f.ops : f.code.orig.map((s, i) => ({ t: ' ', s, a: i }));
     rows.forEach((o, k) => {
@@ -1625,10 +1660,6 @@ export function create({ stage, panel, reduced }) {
       });
       y += lh;
     });
-    if (ph === 'static') {
-      const sy = rowsTop() + scanned * f.code.orig.length * lh;
-      line(ctx, P.x + 1, sy, P.x + P.w - 1, sy, alpha(C.amber, 0.8), 1.2);
-    }
     ctx.restore();
   }
 
@@ -1676,7 +1707,7 @@ export function create({ stage, panel, reduced }) {
       label(ctx, edgy ? 'boundary-biased' : 'uniform inputs', ix, y, { size: 10, upper: true, track: 1, color: edgy ? C.amber : INK[3] });
       y += big ? 19 : 16;
       const inputText = latest ? callText(f, latest[0]) : rec && rec.call ? rec.call : '';
-      if (inputText) labelFit(ctx, inputText.replace(`${f.tpl.name}(`, '('), ix, y, src, { size: 10, minSize: 8, color: INK[2] });
+      if (inputText) fitLabel(inputText.replace(`${f.tpl.name}(`, '('), ix, y, src, { size: 10, minSize: 8, color: INK[2] });
     }
 
     // Rails: one input forks into both versions and meets again at the comparison.
@@ -1692,6 +1723,7 @@ export function create({ stage, panel, reduced }) {
       ctx.stroke();
     }
     line(ctx, Z.ix + src - (L.compact ? 6 : 0), cy, sx, cy, INK.line, 1);
+    if (fuzzing && fuzzing.phase === 'fuzz') drawParticles(fuzzing);
 
     // The two versions, with what each returned on the latest input.
     const outs = io ? [outText(f, io[0], io[1], io[2]), outText(f, io[0], io[2], io[1])] : rec && rec.oa ? [rec.oa, rec.ob] : ['', ''];
@@ -1709,7 +1741,7 @@ export function create({ stage, panel, reduced }) {
       if (L.compact) label(ctx, name, ex + execW / 2, y + 0.5, { size: 9, align: 'center', baseline: 'middle', color: INK[3] });
       else {
         label(ctx, name, ex + 10, y + 0.5, { size: 9.5, baseline: 'middle', color: INK[3] });
-        if (o) labelFit(ctx, o, ex + execW - 9, y + 0.5, execW - 62, { size: 11, minSize: 8, align: 'right', baseline: 'middle', color: col });
+        if (o) fitLabel(o, ex + execW - 9, y + 0.5, execW - 62, { size: 11, minSize: 8, align: 'right', baseline: 'middle', color: col });
       }
     });
 
@@ -1726,7 +1758,6 @@ export function create({ stage, panel, reduced }) {
     line(ctx, mx + cr, cy, Z.gx - 6, cy, INK.line, 1);
 
     drawMarks(B, marks, landed, skipped);
-    if (fuzzing && fuzzing.phase === 'fuzz') drawParticles(fuzzing);
 
     // Bottom strip: what the comparison means, or what it found.
     const sy = F.y + F.h - (L.compact ? 11 : 14);
@@ -1734,8 +1765,8 @@ export function create({ stage, panel, reduced }) {
     let col = INK[3];
     if (skipped) text = L.compact ? 'not flagged · nothing to fuzz' : 'Not flagged by static analysis · nothing to fuzz.';
     else if (diverged) {
-      const r = rec || { call: callText(f, io[0]), oa: outs[0], ob: outs[1] };
-      text = L.compact ? `${r.call}: ${r.oa} vs ${r.ob}` : `Counterexample at input ${cexAt} · ${r.call} · original ${r.oa}, rewrite ${r.ob}`;
+      const r = rec || { call: callText(f, io[0]), callShort: callText(f, io[0], true), oa: outs[0], ob: outs[1] };
+      text = L.compact ? `${r.callShort}: ${r.oa} vs ${r.ob}` : `Counterexample at input ${cexAt} · ${r.call} · original ${r.oa}, rewrite ${r.ob}`;
       col = C.ember;
     } else if (S.settled && (!j || j.phase === 'verdict') && f.rec?.tried) {
       if (f.status === 'escaped' && S.truth) {
@@ -1746,7 +1777,7 @@ export function create({ stage, panel, reduced }) {
         col = C.gold;
       }
     }
-    labelFit(ctx, text, Z.ix, sy, Z.iw, { size: L.compact ? 9.5 : 10.5, minSize: 8, baseline: 'middle', color: col });
+    fitLabel(text, Z.ix, sy, Z.iw, { size: L.compact ? 9.5 : 10.5, minSize: 8, baseline: 'middle', color: col });
   }
 
   // Result grid: one slot per input in the budget; ticks agree, crosses diverge.
@@ -1805,6 +1836,7 @@ export function create({ stage, panel, reduced }) {
     const first = j.landed;
     const n = j.spawned - first;
     const every = Math.max(1, Math.ceil(n / (L.compact ? 24 : 48)));
+    const a = 0.55 * Math.min(1, 10 / Math.max(1, n / every)) + 0.15; // dimmer in a crowd
     for (let k = first; k < j.spawned; k += every) {
       const u = (j.t - k / j.rate) / T_FLY;
       if (u < 0 || u >= 1) continue;
@@ -1818,7 +1850,7 @@ export function create({ stage, panel, reduced }) {
         else [x, yy] = quadAt(ex + execW, y, ex + execW + (mx - cr - ex - execW) * 0.45, y, mx - cr, cy, (u - 0.62) / 0.38);
         const after = u >= 0.62;
         const col = after ? (differ && side === 1 ? C.ember : C.gold) : C.amber;
-        glow(ctx, x, yy, L.compact ? 7 : 9, col, 0.55);
+        glow(ctx, x, yy, L.compact ? 7 : 9, col, a);
         dot(ctx, x, yy, 1.6, C.cream);
       });
     }
@@ -1844,7 +1876,7 @@ export function create({ stage, panel, reduced }) {
     });
     if (L.compact) {
       const t = s.acc ? `saved ${fmt.int(meterShown)} gas · avg ${pct(s.avg)}` : 'gas saved · —';
-      labelFit(ctx, t, K.x + K.w, hy, K.w * 0.5, { size: 9.5, minSize: 8, align: 'right', upper: true, track: 0.6, color: s.acc ? C.gold : INK[3] });
+      fitLabel(t, K.x + K.w, hy, K.w * 0.5, { size: 9.5, minSize: 8, align: 'right', upper: true, track: 0.6, color: s.acc ? C.gold : INK[3] });
       meterBar(K.x, K.y + 16, K.w, 2.5, s);
     } else if (L.hover >= 0) {
       const f = fns[L.hover];
@@ -1858,7 +1890,7 @@ export function create({ stage, panel, reduced }) {
         escaped: `escaped · wrong when ${f.when}`,
       }[look];
       const w0 = textWidth(ctx, `Corpus · ${N} functions · ${contracts} contracts`.toUpperCase(), { size: 11 }) + 60;
-      labelFit(ctx, `${f.name} · ${t}`, K.x + K.w, hy, K.w - w0, { size: 10.5, minSize: 8.5, align: 'right', color: look === 'caught' || look === 'escaped' ? C.ember : look === 'accepted' ? C.gold : INK[2] });
+      fitLabel(`${f.name} · ${t}`, K.x + K.w, hy, K.w - w0, { size: 10.5, minSize: 8.5, align: 'right', color: look === 'caught' || look === 'escaped' ? C.ember : look === 'accepted' ? C.gold : INK[2] });
     }
     for (let i = 0; i < N; i++) drawBlock(fns[i], blockRect(i), time);
   }
@@ -1909,7 +1941,7 @@ export function create({ stage, panel, reduced }) {
       line(ctx, mx, my - b.h * 0.24, mx, my + b.h * 0.08, C.midnight, 1.6);
       dot(ctx, mx, my + b.h * 0.22, 1.1, C.midnight);
     }
-    if (L.names) label(ctx, f.tpl.name, b.x + 8, b.y + b.h / 2 + 0.5, { size: 9, baseline: 'middle', color: text });
+    if (L.names) labelFit(ctx, f.tpl.name, b.x + 8, b.y + b.h / 2 + 0.5, b.w - (look === 'escaped' ? 24 : 14), { size: 9, minSize: 7, baseline: 'middle', color: text });
   }
 
   function meterBar(x, y, w, h, s) {
@@ -1945,7 +1977,7 @@ export function create({ stage, panel, reduced }) {
     label(ctx, `of ${fmt.int(potential)} possible`, M.x, by + 22, { size: 10, color: INK[3] });
     if (s.acc) label(ctx, `avg ${pct(s.avg)} / fn`, M.x + M.w, by + 22, { size: 10, align: 'right', color: C.gold });
     if (s.tainted && by + 40 < M.y + M.h + 6) {
-      labelFit(ctx, `${fmt.int(s.tainted)} of it from wrong rewrites`, M.x, by + 40, M.w, { size: 10, minSize: 8.5, color: C.ember });
+      fitLabel(`${fmt.int(s.tainted)} of it from wrong rewrites`, M.x, by + 40, M.w, { size: 10, minSize: 8.5, color: C.ember });
     }
   }
 
@@ -1981,9 +2013,11 @@ export function create({ stage, panel, reduced }) {
     now = time;
     if (!L.ready) layout(view);
     if (!L.ready) return;
+    const flips = () => fns.some((f) => f.flipAt != null && f.flipAt > now);
     if (params.speed === 0) {
       if (job) finishJob();
       if (batch) instantSlice();
+      if (batch?.done && !flips()) endBatch();
     } else {
       if (batch && !job) nextJob();
       if (job) stepJob(dt * params.speed);
@@ -1991,7 +2025,9 @@ export function create({ stage, panel, reduced }) {
     const s = summary();
     meterShown = reduced || params.speed === 0 ? s.saved : meterShown + (s.saved - meterShown) * Math.min(1, dt * 7);
     if (Math.abs(s.saved - meterShown) < 1) meterShown = s.saved;
-    if (fns.some((f) => f.flipAt != null && f.flipAt > now - 0.1)) refresh();
+    const flipping = flips();
+    if (flipping || wasFlipping) refresh();
+    wasFlipping = flipping;
 
     view.clear();
     const S = scene();
@@ -2002,7 +2038,7 @@ export function create({ stage, panel, reduced }) {
     drawCorpus(time);
     if (!L.compact) drawMeter();
     drawFx();
-    const inputs = s.inputs + (job && job.z ? job.spawned : 0);
+    const inputs = s.inputs + (job && job.phase === 'fuzz' ? job.spawned : 0);
     stat.set(
       L.compact
         ? `${s.done}/${N} · ${fmt.int(inputs)} inputs · seed ${seed}`

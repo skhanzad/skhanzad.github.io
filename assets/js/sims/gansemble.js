@@ -52,10 +52,10 @@ const SHAPES = [
   { kind: 'arc', c: [0.135, 0], R: 0.38, from: 0.3, to: 1.7, thick: 0.045 },
 ];
 const STRATS = [
-  { id: 'none', label: 'None', short: 'None' },
-  { id: 'dup', label: 'Duplicate', short: 'Dup' },
-  { id: 'aug', label: 'Augment', short: 'Aug' },
-  { id: 'gan', label: 'cGAN', short: 'cGAN' },
+  { id: 'none', label: 'None' },
+  { id: 'dup', label: 'Duplicate' },
+  { id: 'aug', label: 'Augment' },
+  { id: 'gan', label: 'cGAN' },
 ];
 const POOL = 120; // points per class in the pool; the majority uses all of them
 const TEST_N = 60; // balanced test set, per class
@@ -66,7 +66,7 @@ const GAN = { z: 4, hidden: 24, steps: 1000, batch: 36, lr: 1e-3, noise: 0.18 };
 const SIGMAS = [0.02, 0.04, 0.06, 0.09, 0.13, 0.18];
 const BUDGET = 7; // ms of training per frame
 const PACE = 10; // work units per frame when a run is paced for watching
-const PREVIEW = 48; // generator samples drawn per class while the GAN trains
+const PREVIEW = 48; // generator samples shown per class while the GAN trains
 
 /* ------------------------------------------------------------------ */
 /* Data                                                               */
@@ -86,8 +86,8 @@ function drawShape(r, s) {
 
 const counts = (ratio) => [POOL, Math.round(POOL / Math.sqrt(ratio)), Math.max(5, Math.round(POOL / ratio))];
 
-// Pools are drawn in a fixed order, so changing the imbalance only adds or removes
-// points at the end of each class: the rest of the dataset stays put.
+// Pools are drawn in a fixed order, so changing the imbalance only adds or removes points
+// at the end of each class: the rest of the dataset stays put.
 function makeData(seed, ratio) {
   const r = stream(seed, 1);
   const pools = SHAPES.map((s) => Array.from({ length: POOL }, () => drawShape(r, s)));
@@ -107,6 +107,7 @@ function classCounts(set) {
 }
 
 const needOf = (n) => n.map((k) => Math.max(...n) - k);
+const byClass = (set, c) => set.filter((p) => p.c === c);
 
 /* ------------------------------------------------------------------ */
 /* A small dense network with Adam                                    */
@@ -125,16 +126,13 @@ function mlp(sizes, r, act = 'tanh', outScale = 1) {
   const a = sizes.map((n) => new Float64Array(n));
   const d = sizes.map((n) => new Float64Array(n));
   for (let l = 0; l < L; l++) {
-    const fi = sizes[l];
-    const fo = sizes[l + 1];
-    const s = Math.sqrt((tanh ? 1 : 2) / fi) * (l === L - 1 ? outScale : 1);
-    const w = Float64Array.from({ length: fi * fo }, () => gauss(r) * s);
-    W.push(w);
-    B.push(new Float64Array(fo));
-    gW.push(new Float64Array(fi * fo));
-    gB.push(new Float64Array(fo));
-    params.push([w, gW[l], new Float64Array(w.length), new Float64Array(w.length)]);
-    params.push([B[l], gB[l], new Float64Array(fo), new Float64Array(fo)]);
+    const s = Math.sqrt((tanh ? 1 : 2) / sizes[l]) * (l === L - 1 ? outScale : 1);
+    W.push(Float64Array.from({ length: sizes[l] * sizes[l + 1] }, () => gauss(r) * s));
+    B.push(new Float64Array(sizes[l + 1]));
+    gW.push(new Float64Array(W[l].length));
+    gB.push(new Float64Array(B[l].length));
+    params.push([W[l], gW[l], new Float64Array(W[l].length), new Float64Array(W[l].length)]);
+    params.push([B[l], gB[l], new Float64Array(B[l].length), new Float64Array(B[l].length)]);
   }
   let t = 0;
   return {
@@ -156,7 +154,7 @@ function mlp(sizes, r, act = 'tanh', outScale = 1) {
       return a[L];
     },
     // Backpropagate dOut through the last forward pass. Weight gradients accumulate unless
-    // `accumulate` is false; with `wantInput` the gradient at the input is returned.
+    // `accumulate` is false; with `wantInput` the gradient at the input is returned too.
     backward(dOut, accumulate = true, wantInput = false) {
       d[L].set(dOut);
       for (let l = L - 1; l >= 0; l--) {
@@ -171,8 +169,8 @@ function mlp(sizes, r, act = 'tanh', outScale = 1) {
           const g = dn[j];
           const off = j * fi;
           if (accumulate) {
-            gB[l][j] += g;
             const gw = gW[l];
+            gB[l][j] += g;
             for (let i = 0; i < fi; i++) gw[off + i] += g * ai[i];
           }
           if (back) for (let i = 0; i < fi; i++) dp[i] += w[off + i] * g;
@@ -202,7 +200,7 @@ function mlp(sizes, r, act = 'tanh', outScale = 1) {
 }
 
 /* ------------------------------------------------------------------ */
-/* Classifier and oversamplers                                        */
+/* Classifier, oversamplers, generator                                */
 /* ------------------------------------------------------------------ */
 
 const xy = new Float64Array(2);
@@ -214,8 +212,10 @@ function logits(net, x, y) {
   return net.forward(xy);
 }
 
-// One Adam step of softmax cross-entropy on a minibatch drawn with replacement, so a
-// class's share of every batch is its share of the training set.
+const argmax3 = (o) => (o[1] > o[0] ? (o[2] > o[1] ? 2 : 1) : o[2] > o[0] ? 2 : 0);
+
+// One Adam step of softmax cross-entropy on a minibatch drawn with replacement, so each
+// class's share of a batch is its share of the training set.
 function clfStep(net, set, r) {
   let loss = 0;
   for (let b = 0; b < CLF.batch; b++) {
@@ -238,9 +238,8 @@ function evaluate(net, pts) {
   let nll = 0;
   for (const p of pts) {
     const o = logits(net, p.x, p.y);
-    const k = o[1] > o[0] ? (o[2] > o[1] ? 2 : 1) : o[2] > o[0] ? 2 : 0;
     tot[p.c]++;
-    if (k === p.c) hit[p.c]++;
+    if (argmax3(o) === p.c) hit[p.c]++;
     const m = Math.max(o[0], o[1], o[2]);
     nll += Math.log(Math.exp(o[0] - m) + Math.exp(o[1] - m) + Math.exp(o[2] - m)) + m - o[p.c];
   }
@@ -248,16 +247,13 @@ function evaluate(net, pts) {
   return { acc: (hit[0] + hit[1] + hit[2]) / pts.length, recall, bal: (recall[0] + recall[1] + recall[2]) / 3, nll: nll / pts.length };
 }
 
-// Repeat each smaller class's points (evenly, in shuffled order) until it matches the majority.
+// Repeat each smaller class's points, evenly and in shuffled order, up to the majority's size.
 function duplicate(set, r) {
   const need = needOf(classCounts(set));
   const synth = [];
   const halo = new Map();
   for (let c = 0; c < 3; c++) {
-    const pts = shuffle(
-      r,
-      set.filter((p) => p.c === c),
-    );
+    const pts = shuffle(r, byClass(set, c));
     for (let k = 0; k < need[c]; k++) {
       const p = pts[k % pts.length];
       synth.push({ x: p.x, y: p.y, c });
@@ -272,7 +268,7 @@ function jitter(set, sigma, r) {
   const need = needOf(classCounts(set));
   const synth = [];
   for (let c = 0; c < 3; c++) {
-    const pts = set.filter((p) => p.c === c);
+    const pts = byClass(set, c);
     for (let k = 0; k < need[c]; k++) {
       const p = pts[(r() * pts.length) | 0];
       synth.push({ x: p.x + sigma * gauss(r), y: p.y + sigma * gauss(r), c });
@@ -286,10 +282,7 @@ function split(set, r) {
   const fit = [];
   const val = [];
   for (let c = 0; c < 3; c++) {
-    const pts = shuffle(
-      r,
-      set.filter((p) => p.c === c),
-    );
+    const pts = shuffle(r, byClass(set, c));
     const nv = Math.max(2, Math.round(pts.length * 0.3));
     pts.forEach((p, i) => (i < nv ? val : fit).push(p));
   }
@@ -298,8 +291,8 @@ function split(set, r) {
 
 const sigmoid = (o) => (o >= 0 ? 1 / (1 + Math.exp(-o)) : Math.exp(o) / (1 + Math.exp(o)));
 
-// Fixed latent codes per class: the synthetic points are G(z) for the first ones, so the
-// samples that drift into shape during training are exactly the ones that get used.
+// Fixed latent codes per class: the synthetic points are G(z) for the first of them, so the
+// samples seen drifting into shape during training are exactly the ones that get used.
 function latents(seed) {
   const r = stream(seed, 50);
   return [0, 1, 2].map(() => Array.from({ length: POOL }, () => Float64Array.from({ length: GAN.z }, () => gauss(r))));
@@ -314,10 +307,43 @@ function generate(G, z, c) {
   return G.forward(gin);
 }
 
+// How far the generator is from each class: the symmetric mean nearest-point (Chamfer)
+// distance between 24 fixed generated samples and the real training points.
+function shapeGap(G, zs, real) {
+  return [0, 1, 2].map((c) => {
+    const gen = [];
+    for (let k = 0; k < 24; k++) {
+      const g = generate(G, zs[c][k], c);
+      gen.push(g[0], g[1]);
+    }
+    let a = 0;
+    let b = 0;
+    for (let i = 0; i < gen.length; i += 2) a += Math.min(...real[c].map((p) => Math.hypot(p.x - gen[i], p.y - gen[i + 1])));
+    for (const p of real[c]) {
+      let m = Infinity;
+      for (let i = 0; i < gen.length; i += 2) m = Math.min(m, Math.hypot(p.x - gen[i], p.y - gen[i + 1]));
+      b += m;
+    }
+    return a / 24 + b / real[c].length;
+  });
+}
+
+function ganSamples(gan, need) {
+  const out = [];
+  for (let c = 0; c < 3; c++) {
+    for (let k = 0; k < need[c]; k++) {
+      const g = generate(gan.G, gan.zs[c][k], c);
+      if (Number.isFinite(g[0] + g[1])) out.push({ x: g[0], y: g[1], c });
+    }
+  }
+  return out;
+}
+
 const mean = (a) => a.reduce((s, v) => s + v, 0) / (a.length || 1);
 const sd = (a) => (a.length > 1 ? Math.sqrt(a.reduce((s, v) => s + (v - mean(a)) ** 2, 0) / (a.length - 1)) : 0);
 const pct = (v, d = 1) => fmt.pct(v, d);
 const tone = (v, good, warn) => (v >= good ? 'ok' : v >= warn ? 'warn' : 'bad');
+const nameOf = (id) => STRATS.find((t) => t.id === id).label;
 
 /* ------------------------------------------------------------------ */
 /* Simulation                                                         */
@@ -330,15 +356,58 @@ export function create({ stage, panel, reduced }) {
   let single = {}; // results on the current dataset, by strategy
   let multi = null; // the latest ten-seed run
   let ganCache = null; // the trained cGAN for the current dataset
-  let job = null; // { it, live, done } the computation being stepped
-  let run = null; // { k, s } while the ten-seed protocol runs
-  let pending = 0; // time (ms) at which a debounced retrain starts
+  let job = null; // { it, live, done }: the computation being stepped
+  let run = null; // { k, s, id } while the ten-seed protocol runs
+  let pending = 0; // when a debounced retrain starts (ms)
   let narration = { text: '', tone: INK[2] };
-  const show = { data, net: null, synth: [], halo: null, search: null, gan: null, trace: null, held: null, step: 0, phase: '', dirty: true, born: 0, netAt: 0 };
+  const show = { data, net: null, netAt: 0, synth: [], halo: null, born: 0, search: null, gan: null, fade: null, trace: null, ganStep: 0, held: null, result: null, phase: '', step: 0, dirty: true };
   const L = {};
   const HOLD = Infinity;
 
   const narrate = (text, t = INK[2]) => (narration = { text, tone: t });
+
+  /* ---------------------------------------------------------------- */
+  /* What the stage shows                                             */
+  /* ---------------------------------------------------------------- */
+
+  function setData(d) {
+    show.data = d;
+    show.dirty = true;
+  }
+
+  function setNet(net) {
+    if (show.net !== net) show.netAt = performance.now();
+    show.net = net;
+    show.dirty = true;
+  }
+
+  function showSynth(synth, halo = null, animate = true) {
+    if (show.synth !== synth) show.born = animate ? performance.now() : 0;
+    show.synth = synth;
+    show.halo = halo;
+  }
+
+  function clearShow() {
+    showSynth([]);
+    show.gan = null;
+    show.fade = null;
+    show.search = null;
+    show.trace = null;
+    show.ganStep = 0;
+    show.held = null;
+    show.result = null;
+  }
+
+  // Show a result (or one in progress): its classifier, synthetic points and mechanism.
+  function present(r) {
+    if (!r) return;
+    if (r.net) setNet(r.net);
+    showSynth(r.synth, r.halo);
+    show.search = r.search;
+    show.trace = r.gan ? r.gan.trace : null;
+    show.ganStep = r.gan ? r.gan.step : 0;
+    show.result = r.acc != null ? r : null;
+  }
 
   /* ---------------------------------------------------------------- */
   /* Jobs: generators that yield work units, stepped by the frame loop */
@@ -349,7 +418,7 @@ export function create({ stage, panel, reduced }) {
     while (performance.now() < until) yield HOLD;
   }
 
-  // Train the classifier (same seed, same budget for every strategy); re-initialise on divergence.
+  // Train the classifier: same seed and budget for every strategy; re-initialise on divergence.
   function* fit(set, s, ui, cost = 1) {
     let net = null;
     for (let attempt = 0; attempt < 3; attempt++) {
@@ -357,11 +426,8 @@ export function create({ stage, panel, reduced }) {
       net = mlp([2, CLF.hidden, CLF.hidden, 3], r, 'tanh');
       if (ui.view) setNet(net);
       let ok = true;
-      for (let k = 0; k < CLF.steps; k++) {
-        if (!Number.isFinite(clfStep(net, set, r))) {
-          ok = false;
-          break;
-        }
+      for (let k = 0; k < CLF.steps && ok; k++) {
+        ok = Number.isFinite(clfStep(net, set, r));
         if (ui.view) {
           show.dirty = true;
           show.step = k + 1;
@@ -374,21 +440,23 @@ export function create({ stage, panel, reduced }) {
     return net;
   }
 
+  // Score each jitter strength on a held-out 30% of the training points.
   function* search(d, ui) {
     const { fit: part, val } = split(d.train, stream(d.seed, 3));
     const state = { scores: [], current: -1, best: -1 };
     if (ui.view) {
       show.search = state;
       show.held = new Set(val);
+      show.heldN = classCounts(val);
+      show.phase = 'search';
     }
     if (needOf(classCounts(part)).every((k) => k === 0)) return state;
     for (let i = 0; i < SIGMAS.length; i++) {
       state.current = i;
       const synth = jitter(part, SIGMAS[i], stream(d.seed, 20 + i));
       if (ui.view) {
-        present({ synth });
-        show.phase = 'search';
-        narrate(`Jitter σ = ${SIGMAS[i]}: training on 70% of the points, scoring on the dimmed 30%…`, C.amber);
+        showSynth(synth);
+        narrate(`Trying jitter σ = ${SIGMAS[i]}: train on 70% of the points, score on the dimmed 30%…`, C.amber);
       }
       const net = yield* fit([...part, ...synth], d.seed, ui, ui.live ? 0.25 : 1);
       state.scores.push(evaluate(net, val));
@@ -403,38 +471,36 @@ export function create({ stage, panel, reduced }) {
     state.best = best;
     if (ui.view) {
       show.held = null;
-      narrate(`σ = ${SIGMAS[best]} scores best on validation (${pct(state.scores[best].bal, 0)}): oversampling with it.`, C.amber);
+      narrate(`σ = ${SIGMAS[best]} scores best on validation (${pct(state.scores[best].bal, 0)} balanced accuracy).`, C.amber);
     }
-    if (ui.live) yield* hold(0.6);
+    if (ui.live) yield* hold(0.7);
     return state;
   }
 
-  // Train the conditional GAN: non-saturating loss, Adam (β1 = 0.5), class-balanced batches
-  // and instance noise annealed to zero. Restart from a fresh seed if it diverges.
+  // Train the conditional GAN: non-saturating loss, Adam (β1 = 0.5), class-balanced batches and
+  // instance noise annealed to zero. Restart from a fresh seed if it diverges.
   function* trainGan(d, ui) {
     const zs = latents(d.seed);
-    const byClass = [0, 1, 2].map((c) => d.train.filter((p) => p.c === c));
+    const real = [0, 1, 2].map((c) => byClass(d.train, c));
     const din = new Float64Array(5);
     const d1 = new Float64Array(1);
     const d2 = new Float64Array(2);
+    const z = new Float64Array(GAN.z);
     let state = null;
     for (let attempt = 0; attempt < 4; attempt++) {
       const r = stream(d.seed, 40 + attempt);
       const G = mlp([GAN.z + 3, GAN.hidden, GAN.hidden, 2], r, 'lrelu', 0.3);
       const D = mlp([5, GAN.hidden, GAN.hidden, 1], r, 'lrelu');
-      state = { key: d.key, G, zs, step: 0, trace: [], ema: null };
+      state = { key: d.key, G, zs, step: 0, trace: [shapeGap(G, zs, real)] };
       if (ui.view) show.gan = state;
-      const z = new Float64Array(GAN.z);
       let ok = true;
       for (let s = 0; s < GAN.steps && ok; s++) {
         const noise = GAN.noise * Math.max(0, 1 - s / (GAN.steps * 0.85));
-        let real = 0;
-        let fake = 0;
         let loss = 0;
-        // Discriminator: real points up, generated points down.
+        // Discriminator: push real points toward 1 and generated ones toward 0.
         for (let b = 0; b < GAN.batch; b++) {
           const c = b % 3;
-          const p = byClass[c][(r() * byClass[c].length) | 0];
+          const p = real[c][(r() * real[c].length) | 0];
           din.fill(0);
           din[2 + c] = 1;
           din[0] = p.x + noise * gauss(r);
@@ -443,7 +509,6 @@ export function create({ stage, panel, reduced }) {
           d1[0] = q - 1;
           D.backward(d1);
           loss -= Math.log(q + 1e-12);
-          real += q;
           for (let i = 0; i < GAN.z; i++) z[i] = gauss(r);
           const g = generate(G, z, c);
           din[0] = g[0] + noise * gauss(r);
@@ -452,10 +517,9 @@ export function create({ stage, panel, reduced }) {
           d1[0] = q;
           D.backward(d1);
           loss -= Math.log(1 - q + 1e-12);
-          fake += q;
         }
         D.step(GAN.lr, 1 / GAN.batch, 0.5, 0.999);
-        // Generator: move samples toward where the discriminator says "real".
+        // Generator: move its samples to where the discriminator answers "real".
         for (let b = 0; b < GAN.batch; b++) {
           const c = b % 3;
           for (let i = 0; i < GAN.z; i++) z[i] = gauss(r);
@@ -475,11 +539,8 @@ export function create({ stage, panel, reduced }) {
         }
         G.step(GAN.lr, 1 / GAN.batch, 0.5, 0.999);
         if (!Number.isFinite(loss)) ok = false;
-        const now = [real / GAN.batch, fake / GAN.batch];
-        state.ema = state.ema ? state.ema.map((v, i) => v * 0.9 + now[i] * 0.1) : now;
-        if (s % 10 === 0) state.trace.push(state.ema);
         state.step = s + 1;
-        if (ui.view) show.step = s + 1;
+        if (ok && state.step % 20 === 0) state.trace.push(shapeGap(G, zs, real));
         yield 2.5;
       }
       if (ok) break;
@@ -488,23 +549,12 @@ export function create({ stage, panel, reduced }) {
     return state;
   }
 
-  function ganSamples(gan, need) {
-    const out = [];
-    for (let c = 0; c < 3; c++) {
-      for (let k = 0; k < need[c]; k++) {
-        const g = generate(gan.G, gan.zs[c][k], c);
-        if (Number.isFinite(g[0] + g[1])) out.push({ x: g[0], y: g[1], c });
-      }
-    }
-    return out;
-  }
-
   // One strategy on dataset d: build the synthetic set, train, evaluate on the balanced test set.
   function* strategy(id, d, ui) {
     const res = { id, key: d.key, synth: [], halo: null, search: null, gan: null };
     if (ui.view) {
-      show.data = d;
-      present({ synth: [] });
+      setData(d);
+      clearShow();
       show.phase = 'train';
     }
     if (id === 'dup') {
@@ -518,41 +568,44 @@ export function create({ stage, panel, reduced }) {
         if (ui.view) {
           setNet(null);
           show.phase = 'gan';
+          narrate(`The conditional GAN is learning each class's shape from ${d.train.length} real points…`, C.amber);
         }
         res.gan = yield* trainGan(d, ui);
         if (d.key === data.key) ganCache = res.gan;
       }
       res.synth = ganSamples(res.gan, needOf(d.n));
       if (ui.view) {
+        // The used samples stay where they are; the generator's other samples fade out.
+        showSynth(res.synth, null, false);
         show.gan = null;
         show.fade = { gan: res.gan, t0: performance.now() };
         narrate(`Sampling ${fmt.int(res.synth.length)} synthetic points from the trained generator…`, C.amber);
       }
-      if (ui.live) yield* hold(0.45);
+      if (ui.live) yield* hold(0.5);
     }
     if (ui.view) {
       present(res);
       show.phase = 'train';
-      if (id !== 'aug' || res.search.best < 0) narrate(startText(id, d), C.amber);
-      else narrate(`Training on the real points plus ${fmt.int(res.synth.length)} copies jittered with σ = ${SIGMAS[res.search.best]}…`, C.amber);
+      narrate(startText(res, d), C.amber);
     }
     res.net = yield* fit([...d.train, ...res.synth], d.seed, ui);
     Object.assign(res, evaluate(res.net, d.test));
     return res;
   }
 
-  // The protocol: every strategy on ten seeds (new train and test draws each time). The
+  // The protocol: every strategy on ten seeds, each with fresh training and test draws. The
   // current seed runs last, so the stage ends where it started.
   function* protocol() {
     const res = { none: [], dup: [], aug: [], gan: [] };
-    multi = { res, done: 0, ratio: params.ratio };
+    multi = { res, done: 0 };
     for (let k = 0; k < SEEDS; k++) {
       const s = seed + ((k + 1) % SEEDS);
       const d = s === seed ? data : makeData(s, params.ratio);
-      run = { k, s };
-      show.data = d;
+      run = { k, s, id: params.strategy };
+      setData(d);
       setNet(null);
-      present({ synth: [] });
+      clearShow();
+      narrate(`Seed ${k + 1} of ${SEEDS}: fresh training and test draws (seed ${s})…`, C.amber);
       const order = [params.strategy, ...STRATS.map((t) => t.id).filter((id) => id !== params.strategy)];
       for (const id of order) {
         const view = id === params.strategy;
@@ -560,42 +613,33 @@ export function create({ stage, panel, reduced }) {
         let r = d === data ? single[id] : null;
         if (!r) r = yield* strategy(id, d, { view, live: false });
         if (d === data) single[id] = r;
-        if (view) present(r);
         res[id].push({ acc: r.acc, recall: r.recall });
-        if (view) narrate(`Seed ${k + 1} of ${SEEDS} · ${label_(id)}: ${pct(r.acc)} test accuracy, arc recall ${pct(r.recall[2], 0)}.`, C.amber);
+        if (id === params.strategy) {
+          present(r);
+          show.phase = '';
+          narrate(`Seed ${k + 1} of ${SEEDS} · ${nameOf(id)}: ${pct(r.acc)} test accuracy, arc recall ${pct(r.recall[2], 0)}.`, C.amber);
+        }
       }
       multi.done = k + 1;
     }
   }
 
-  const label_ = (id) => STRATS.find((t) => t.id === id).label;
-
-  function startText(id, d) {
-    const [, nB, nC] = d.n;
-    const total = d.n[0] + nB + nC;
-    if (id === 'none') return `Training on the raw set, where the arc is ${nC} of ${total} points…`;
-    if (id === 'dup') return `Repeating the ${nC} arc and ${nB} cluster points until each class has ${d.n[0]}…`;
-    if (id === 'aug') return 'The classes are already balanced: there is nothing to add.';
-    return `Training on the real points plus ${fmt.int(needOf(d.n).reduce((a, b) => a + b, 0))} generated ones…`;
+  function startText(r, d) {
+    const [nA, nB, nC] = d.n;
+    if (!r.synth.length) return r.id === 'none' ? `Training on the raw set, where the arc is only ${nC} of ${nA + nB + nC} points…` : 'The classes are already balanced: there is nothing to add.';
+    if (r.id === 'dup') return `Repeating the ${nC} arc and ${nB} cluster points until every class has ${nA}…`;
+    if (r.id === 'aug') return `Training on the real points plus ${fmt.int(r.synth.length)} copies jittered with σ = ${SIGMAS[r.search.best]}…`;
+    return `Training on the real points plus ${fmt.int(r.synth.length)} generated ones…`;
   }
 
   function resultText(r) {
-    const head = {
-      none: 'No oversampling',
-      dup: 'Duplication',
-      aug: r.search?.best >= 0 ? `Jitter σ = ${SIGMAS[r.search.best]}` : 'Augmentation',
-      gan: 'cGAN samples',
-    }[r.id];
+    const head = { none: 'No oversampling', dup: 'Duplication', aug: r.search?.best >= 0 ? `Jitter σ = ${SIGMAS[r.search.best]}` : 'Augmentation', gan: 'cGAN samples' }[r.id];
     return `${head}: ${pct(r.acc)} test accuracy, and ${pct(r.recall[2], 0)} of the arc's test points recovered.`;
   }
 
   /* ---------------------------------------------------------------- */
   /* Driving the jobs                                                 */
   /* ---------------------------------------------------------------- */
-
-  function startJob(it, liveRun, done) {
-    job = { it, live: liveRun, done };
-  }
 
   function pump() {
     const t0 = performance.now();
@@ -617,26 +661,28 @@ export function create({ stage, panel, reduced }) {
   function trainLive(id) {
     pending = 0;
     run = null;
-    if (id === 'gan' && !(ganCache && ganCache.key === data.key)) narrate(`The conditional GAN is learning each class's shape from ${data.train.length} real points…`, C.amber);
-    startJob(strategy(id, data, { view: true, live: !reduced }), !reduced, (res) => {
-      single[id] = res;
-      present(res);
-      show.phase = '';
-      narrate(resultText(res), C.cream);
-      say.say(`${label_(id)}: test accuracy ${pct(res.acc)}, minority recall ${pct(res.recall[2], 0)}.`);
-      refresh();
-    });
+    job = {
+      it: strategy(id, data, { view: true, live: !reduced }),
+      live: !reduced,
+      done: (res) => {
+        single[id] = res;
+        present(res);
+        show.phase = '';
+        narrate(resultText(res), C.cream);
+        say.say(`${nameOf(id)}: test accuracy ${pct(res.acc)}, minority recall ${pct(res.recall[2], 0)}.`);
+        refresh();
+      },
+    };
     refresh();
   }
 
   function select(id) {
     params.strategy = id;
     pick.set(id);
-    tip.hide();
+    tip?.hide();
     if (run) {
-      // During the ten-seed run, the choice only changes what the stage follows.
-      const r = show.data === data ? single[id] : null;
-      if (r) present(r);
+      // During the ten-seed run the choice only changes what the stage follows.
+      if (show.data === data && single[id]) present(single[id]);
       refresh();
       return;
     }
@@ -644,28 +690,32 @@ export function create({ stage, panel, reduced }) {
   }
 
   function startProtocol() {
-    tip.hide();
+    tip?.hide();
     pending = 0;
-    narrate(`Running all four strategies on ${SEEDS} seeds, each with fresh training and test draws…`, C.amber);
-    startJob(protocol(), false, () => {
-      run = null;
-      show.phase = '';
-      const order = STRATS.map((t) => ({ t, m: mean(multi.res[t.id].map((r) => r.acc)), s: sd(multi.res[t.id].map((r) => r.acc)) })).sort((a, b) => b.m - a.m);
-      const best = order[0];
-      const last = order[order.length - 1];
-      narrate(`${SEEDS} seeds: ${best.t.label} leads at ${pct(best.m)} ± ${(best.s * 100).toFixed(1)}; ${last.t.label} trails at ${pct(last.m)}.`, C.gold);
-      say.say(`Ten-seed run complete. Mean test accuracy: ${STRATS.map((t) => `${t.label} ${pct(mean(multi.res[t.id].map((r) => r.acc)))}`).join(', ')}.`);
-      present(single[params.strategy]);
-      refresh();
-    });
+    job = {
+      it: protocol(),
+      live: false,
+      done: () => {
+        run = null;
+        show.phase = '';
+        const rows = STRATS.map((t) => ({ t, m: mean(multi.res[t.id].map((r) => r.acc)), s: sd(multi.res[t.id].map((r) => r.acc)) })).sort((a, b) => b.m - a.m);
+        const [best, last] = [rows[0], rows[rows.length - 1]];
+        narrate(`${SEEDS} seeds: ${best.t.label} leads at ${pct(best.m)} ± ${(best.s * 100).toFixed(1)}; ${last.t.label} trails at ${pct(last.m)}.`, C.gold);
+        say.say(`Ten-seed run complete. Mean test accuracy: ${rows.map((x) => `${x.t.label} ${pct(x.m)}`).join(', ')}.`);
+        present(single[params.strategy]);
+        refresh();
+      },
+    };
     refresh();
   }
 
   function stopProtocol() {
     job = null;
     run = null;
-    narrate(multi.done ? `Stopped after ${multi.done} of ${SEEDS} seeds; the chart shows those.` : 'Stopped before the first seed finished.', INK[2]);
-    show.data = data;
+    show.phase = '';
+    narrate(multi.done ? `Stopped after ${multi.done} of ${SEEDS} seeds; the chart shows those.` : 'Stopped before the first seed finished.');
+    setData(data);
+    clearShow();
     if (single[params.strategy]) present(single[params.strategy]);
     else trainLive(params.strategy);
     refresh();
@@ -679,38 +729,15 @@ export function create({ stage, panel, reduced }) {
     single = {};
     multi = null;
     ganCache = null;
-    show.data = data;
+    setData(data);
     setNet(null);
-    present({ synth: [] });
+    clearShow();
+    show.gan = null;
     show.phase = '';
-    narrate(`${data.n.join(' : ')} training points; the test set stays balanced at ${TEST_N} per class.`, INK[2]);
+    narrate(`${data.n.join(' : ')} training points; the test set stays balanced at ${TEST_N} per class.`);
     if (debounce) pending = performance.now() + 220;
     else trainLive(params.strategy);
     refresh();
-  }
-
-  /* ---------------------------------------------------------------- */
-  /* What the stage shows                                             */
-  /* ---------------------------------------------------------------- */
-
-  function setNet(net) {
-    if (show.net !== net) show.netAt = performance.now();
-    show.net = net;
-    show.dirty = true;
-  }
-
-  // Show a (partial) result: its classifier, synthetic points and mechanism.
-  function present(r) {
-    if (!r) return;
-    if (r.net) setNet(r.net);
-    show.synth = r.synth || [];
-    show.halo = r.halo || null;
-    show.search = r.search || null;
-    show.trace = r.gan ? r.gan.trace : null;
-    show.ganStep = r.gan ? r.gan.step : 0;
-    show.born = performance.now();
-    if (r.acc != null) show.result = r;
-    else show.result = null;
   }
 
   /* ---------------------------------------------------------------- */
@@ -720,11 +747,11 @@ export function create({ stage, panel, reduced }) {
   const about = section(panel, 'What you are seeing');
   para(
     about,
-    'A small network must learn three shapes from a <strong>small, imbalanced</strong> training set: the thin arc has only a handful of points. <strong>Oversampling</strong> tops up the smaller classes before training, with <em>duplicates</em>, <em>jittered copies</em> (strength picked by a validation search) or samples from a <em>conditional GAN</em>.',
+    'A small network must learn three shapes from a <strong>small, imbalanced</strong> training set, where the thin arc has only a handful of points. <strong>Oversampling</strong> tops up the smaller classes before training: with <em>duplicates</em>, <em>jittered copies</em> (strength picked by a validation search) or samples from a <em>conditional GAN</em>.',
   );
   para(
     about,
-    'Filled dots are real training points; rings are synthetic. Tinted regions are what the network predicts. Every strategy gets the same network and training budget, and is scored on a <strong>balanced</strong> held-out test set.',
+    'Filled dots are real training points and rings are synthetic ones. Tinted regions show what the network predicts. Every strategy gets the same network and training budget, and is scored on a <strong>balanced</strong> held-out test set.',
   );
   legend(about, [
     { color: C.gold, label: 'crescent · majority' },
@@ -799,28 +826,42 @@ export function create({ stage, panel, reduced }) {
   );
   const say = live(panel);
 
+  // Readout cells are only written when their text or tone changes (no per-frame DOM churn).
+  const shown = {};
+  const put = (id, value, t = '') => {
+    if (shown[id] === value + t) return;
+    shown[id] = value + t;
+    out.set(id, value, t);
+  };
+
+  let refreshedAt = 0;
   function refresh() {
+    refreshedAt = performance.now();
     const r = single[params.strategy];
     const here = show.data === data;
-    out.set('acc', r ? pct(r.acc) : '—', r ? tone(r.acc, 0.92, 0.85) : '');
-    out.set('recall', r ? pct(r.recall[2], 0) : '—', r ? tone(r.recall[2], 0.85, 0.7) : '');
+    put('acc', r ? pct(r.acc) : '—', r ? tone(r.acc, 0.92, 0.85) : '');
+    put('recall', r ? pct(r.recall[2], 0) : '—', r ? tone(r.recall[2], 0.85, 0.7) : '');
     const added = here && job && !run ? show.synth.length : r ? r.synth.length : null;
-    out.set('synth', added == null ? '—' : fmt.int(added));
+    put('synth', added == null ? '—' : fmt.int(added));
     const g = here && show.gan ? show.gan : ganCache;
-    out.set('gan', g ? `${fmt.int(g.step)} / ${fmt.int(GAN.steps)}` : '—', g ? (g.step < GAN.steps ? 'warn' : 'ok') : '');
-    out.set('multi', multi?.done ? STRATS.map((t) => (mean(multi.res[t.id].map((x) => x.acc)) * 100).toFixed(1)).join(' · ') : '—', multi?.done === SEEDS ? 'ok' : '');
-    buttons.run.textContent = run ? 'Stop run ■' : multi?.done === SEEDS ? 'Run again ▸' : 'Run 10 seeds ▸';
-    buttons.gan.disabled = !!run;
+    put('gan', g ? `${fmt.int(g.step)} / ${fmt.int(GAN.steps)}` : '—', g ? (g.step < GAN.steps ? 'warn' : 'ok') : '');
+    if (run) put('multi', `seed ${run.k + 1} of ${SEEDS}…`, 'warn');
+    else put('multi', multi?.done ? STRATS.map((t) => (mean(multi.res[t.id].map((x) => x.acc)) * 100).toFixed(1)).join(' · ') : '—', multi?.done === SEEDS ? 'ok' : multi?.done ? 'warn' : '');
+    const txt = run ? 'Stop run ■' : multi?.done === SEEDS ? 'Run again ▸' : 'Run 10 seeds ▸';
+    if (buttons.run.textContent !== txt) buttons.run.textContent = txt;
+    if (buttons.gan.disabled !== !!run) buttons.gan.disabled = !!run;
   }
 
   /* ---------------------------------------------------------------- */
   /* Canvas                                                           */
   /* ---------------------------------------------------------------- */
 
+  let tip = null;
   const view = stageCanvas(stage, { onResize: layout });
   const { ctx } = view;
   const stat = status(stage);
-  const tip = hint(stage, 'Tap a strategy on the right to retrain it on this seed');
+  tip = hint(stage, '');
+  layout(view);
   let hover = -1;
   const ptr = pointer(view.canvas, {
     move: (p) => {
@@ -838,8 +879,7 @@ export function create({ stage, panel, reduced }) {
   });
 
   function rowAt(x, y) {
-    const rows = L.rows || [];
-    return rows.findIndex((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
+    return (L.rows || []).findIndex((r) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h);
   }
 
   function layout(v) {
@@ -847,60 +887,59 @@ export function create({ stage, panel, reduced }) {
     const h = v.h;
     L.compact = w < 620 || h < 480;
     const pad = L.compact ? 16 : Math.max(22, Math.min(40, w * 0.035));
-    L.pad = pad;
-    L.kick = L.compact ? 58 : 60;
-    L.narr = L.kick + (L.compact ? 25 : 31);
-    L.textW = w - pad * 2;
-    const top = L.narr + (L.compact ? 16 : 26);
-    const bottom = h - (L.compact ? 34 : 44);
     L.res = L.compact ? 44 : 56;
-    L.rows = [];
     if (!L.compact) {
-      const S = Math.max(160, Math.min(bottom - top, (w - pad * 2) * 0.58));
+      // Kicker and narration on top; plot left; strategies, training set and mechanism right.
+      L.kick = 60;
+      L.narr = 91;
+      const top = 117;
+      const S = Math.max(200, Math.min(h - 44 - top, (w - pad * 2) * 0.58));
       const gap = Math.max(28, Math.min(52, w * 0.04));
       const colW = Math.min(440, w - pad * 2 - S - gap);
       const x0 = Math.max(pad, (w - (S + gap + colW)) / 2);
       L.plot = { x: x0, y: top, s: S };
-      const col = { x: x0 + S + gap, y: top, w: colW, h: S };
-      const rowH = clamp((S - 280) / 4, 24, 34);
-      L.forest = { x: col.x, y: col.y, w: col.w, rowH, foot: true };
-      const fh = 62 + rowH * 4 + 26;
-      L.set = { x: col.x, y: col.y + fh + 18, w: col.w };
-      const ctxTop = L.set.y + 92;
-      const ch = Math.min(170, col.y + col.h - ctxTop);
-      L.context = ch >= 84 ? { x: col.x, y: col.y + col.h - ch, w: col.w, h: ch } : null;
+      const rowH = clamp((S - 330) / 5, 24, 38);
+      const forestH = 44 + rowH * 4 + 40;
+      const ctxH = clamp(S - forestH - 84 - 36, 0, 160);
+      const g = (S - forestH - 84 - ctxH) / 2;
+      L.forest = { x: x0 + S + gap, y: top, w: colW, rowH, head: 44, foot: true };
+      L.set = { x: x0 + S + gap, y: top + forestH + g, w: colW };
+      L.context = ctxH >= 90 ? { x: x0 + S + gap, y: top + S - ctxH, w: colW, h: ctxH } : null;
       L.side = null;
-      L.narrW = x0 + S + gap + colW - x0;
       L.textX = x0;
-    } else if (w >= 560) {
-      const S = Math.max(150, bottom - top);
-      L.plot = { x: pad, y: top, s: S };
-      const cx = pad + S + 24;
-      const cw = Math.min(420, w - cx - pad);
-      const rowH = clamp((S - 150) / 4, 18, 26);
-      L.forest = { x: cx, y: top, w: cw, rowH, foot: false };
-      L.set = { x: cx, y: top + 46 + rowH * 4 + 26, w: cw };
-      L.context = null;
-      L.side = null;
-      L.narrW = cx + cw - pad;
-      L.textX = pad;
+      L.textW = S + gap + colW;
     } else {
-      const forestH = 40 + 4 * 19 + 14;
-      const sideW = 98;
-      const S = Math.max(150, Math.min(w - pad * 2 - sideW - 12, bottom - top - forestH - 14));
-      L.plot = { x: pad, y: top, s: S };
-      L.side = { x: pad + S + 12, y: top, w: w - pad - (pad + S + 12), h: S };
-      L.forest = { x: pad, y: top + S + 16, w: w - pad * 2, rowH: 19, foot: false };
-      L.set = null;
-      L.context = null;
-      L.narrW = w - pad * 2;
+      // The hint pill owns the top-left band: the kicker sits at its right, the narration below.
+      L.kick = 33;
+      L.narr = 64;
+      const top = 80;
+      const bottom = h - 30;
       L.textX = pad;
+      L.textW = w - pad * 2;
+      L.context = null;
+      if (w >= 560) {
+        const S = Math.max(150, bottom - top);
+        const cx = pad + S + 24;
+        const cw = Math.min(420, w - cx - pad);
+        const rowH = clamp((S - 150) / 4, 18, 26);
+        L.plot = { x: pad, y: top, s: S };
+        L.forest = { x: cx, y: top, w: cw, rowH, head: 34, foot: false };
+        L.set = top + 34 + rowH * 4 + 120 <= top + S ? { x: cx, y: top + 34 + rowH * 4 + 34, w: cw } : null;
+        L.side = null;
+      } else {
+        const rowH = 18;
+        const forestH = 34 + rowH * 4 + 14;
+        const S = Math.max(150, Math.min(w - pad * 2 - 96, bottom - top - forestH - 14));
+        L.plot = { x: pad, y: top, s: S };
+        L.side = { x: pad + S + 12, y: top, w: w - pad * 2 - S - 12, h: S };
+        L.forest = { x: pad, y: top + S + 14, w: w - pad * 2, rowH, head: 34, foot: false };
+        L.set = null;
+      }
     }
-    // Strategy rows are hit targets (taps select a strategy).
+    // Strategy rows double as hit targets.
     const f = L.forest;
-    const y0 = f.y + (L.compact ? 34 : 44);
-    for (let i = 0; i < STRATS.length; i++) L.rows.push({ x: f.x - 8, y: y0 + i * f.rowH, w: f.w + 16, h: f.rowH });
-    tip.set(L.compact ? (L.side ? 'Tap a strategy below to retrain' : 'Tap a strategy to retrain it') : 'Tap a strategy on the right to retrain it on this seed');
+    L.rows = STRATS.map((_, i) => ({ x: f.x - 8, y: f.y + f.head + i * f.rowH, w: f.w + 16, h: f.rowH }));
+    tip?.set(L.compact ? (L.side ? 'Tap a strategy below to retrain' : 'Tap a strategy to retrain it') : 'Click a strategy on the right to retrain it on this seed');
     show.dirty = true;
   }
 
@@ -914,23 +953,26 @@ export function create({ stage, panel, reduced }) {
 
   const fieldCanvas = document.createElement('canvas');
   const fieldCtx = fieldCanvas.getContext('2d');
-  const prevCanvas = document.createElement('canvas');
-  const prevCtx = prevCanvas.getContext('2d');
-  let field = null; // { res, img, f, segs }
-  let preds = null;
-  let fieldNet = null;
-  let prevAt = -1;
+  const layer = document.createElement('canvas'); // field + boundary at plot size, vignetted
+  const layerCtx = layer.getContext('2d');
+  const prevLayer = document.createElement('canvas'); // the outgoing layer, for a crossfade
+  const prevCtx = prevLayer.getContext('2d');
   const RGB = CLASSES.map((k) => [1, 3, 5].map((i) => parseInt(k.color.slice(i, i + 2), 16)));
+  let field = null; // { res, segs }
+  let fieldNet = null;
+  let img = null;
+  let margin = null;
+  let preds = null;
+  let prevAt = -1;
 
   function computeField() {
     show.dirty = false;
-    const res = L.res;
     const net = show.net;
-    if (net !== fieldNet && field && fieldNet && !reduced) {
-      // Keep the outgoing field for a short crossfade.
-      prevCanvas.width = fieldCanvas.width;
-      prevCanvas.height = fieldCanvas.height;
-      prevCtx.drawImage(fieldCanvas, 0, 0);
+    if (net !== fieldNet && field && !reduced) {
+      // Keep the outgoing layer for a short crossfade.
+      prevLayer.width = layer.width;
+      prevLayer.height = layer.height;
+      prevCtx.drawImage(layer, 0, 0);
       prevAt = performance.now();
     }
     fieldNet = net;
@@ -939,65 +981,93 @@ export function create({ stage, panel, reduced }) {
       preds = null;
       return;
     }
-    if (fieldCanvas.width !== res) {
+    const res = L.res;
+    if (!img || img.width !== res) {
       fieldCanvas.width = res;
       fieldCanvas.height = res;
+      img = fieldCtx.createImageData(res, res);
+      margin = new Float32Array(res * res * 3);
     }
-    const img = fieldCtx.createImageData(res, res);
-    const f = new Float32Array(res * res * 3);
+    const px = img.data;
     for (let j = 0; j < res; j++) {
       const y = VIEW - ((j + 0.5) * 2 * VIEW) / res;
       for (let i = 0; i < res; i++) {
-        const x = -VIEW + ((i + 0.5) * 2 * VIEW) / res;
-        const o = logits(net, x, y);
+        const o = logits(net, -VIEW + ((i + 0.5) * 2 * VIEW) / res, y);
         const m = Math.max(o[0], o[1], o[2]);
         const e0 = Math.exp(o[0] - m);
         const e1 = Math.exp(o[1] - m);
         const e2 = Math.exp(o[2] - m);
         const s = e0 + e1 + e2;
-        const p = [e0 / s, e1 / s, e2 / s];
-        const conf = clamp((Math.max(p[0], p[1], p[2]) - 1 / 3) * 1.5);
+        const conf = clamp(((Math.max(e0, e1, e2) / s) - 1 / 3) * 1.5);
         const k = (j * res + i) * 4;
-        for (let ch = 0; ch < 3; ch++) img.data[k + ch] = p[0] * RGB[0][ch] + p[1] * RGB[1][ch] + p[2] * RGB[2][ch];
-        img.data[k + 3] = 255 * (0.035 + 0.15 * conf);
+        for (let ch = 0; ch < 3; ch++) px[k + ch] = (e0 * RGB[0][ch] + e1 * RGB[1][ch] + e2 * RGB[2][ch]) / s;
+        px[k + 3] = 255 * (0.03 + 0.12 * conf);
         const q = (j * res + i) * 3;
-        f[q] = o[0] - Math.max(o[1], o[2]);
-        f[q + 1] = o[1] - Math.max(o[0], o[2]);
-        f[q + 2] = o[2] - Math.max(o[0], o[1]);
+        margin[q] = o[0] - Math.max(o[1], o[2]);
+        margin[q + 1] = o[1] - Math.max(o[0], o[2]);
+        margin[q + 2] = o[2] - Math.max(o[0], o[1]);
       }
     }
     fieldCtx.putImageData(img, 0, 0);
-    field = { res, f, segs: contours(f, res) };
-    preds = show.data.test.map((p) => {
-      const o = logits(net, p.x, p.y);
-      return o[1] > o[0] ? (o[2] > o[1] ? 2 : 1) : o[2] > o[0] ? 2 : 0;
-    });
+    field = { res, segs: contours(margin, res) };
+    preds = show.data.test.map((p) => argmax3(logits(net, p.x, p.y)));
+    renderLayer();
   }
 
-  // Marching squares on each class's margin; the union of the zero lines is the boundary.
+  // The soft field and its boundary lines, faded toward the corners so the plot reads as a
+  // pool of light around the data rather than a filled box.
+  function renderLayer() {
+    const S = L.plot.s;
+    const px = Math.round(S * view.dpr);
+    if (layer.width !== px) {
+      layer.width = px;
+      layer.height = px;
+    }
+    const c = layerCtx;
+    c.setTransform(view.dpr, 0, 0, view.dpr, 0, 0);
+    c.clearRect(0, 0, S, S);
+    c.imageSmoothingEnabled = true;
+    c.drawImage(fieldCanvas, 0, 0, S, S);
+    const cell = S / field.res;
+    const g = field.segs;
+    c.beginPath();
+    for (let i = 0; i < g.length; i += 4) {
+      c.moveTo((g[i] + 0.5) * cell, (g[i + 1] + 0.5) * cell);
+      c.lineTo((g[i + 2] + 0.5) * cell, (g[i + 3] + 0.5) * cell);
+    }
+    c.strokeStyle = alpha(C.cream, 0.45);
+    c.lineWidth = 1;
+    c.lineCap = 'round';
+    c.stroke();
+    const mask = c.createRadialGradient(S / 2, S / 2, S * 0.24, S / 2, S / 2, S * 0.5);
+    mask.addColorStop(0, alpha(C.midnight, 1));
+    mask.addColorStop(1, alpha(C.midnight, 0));
+    c.globalCompositeOperation = 'destination-in';
+    c.fillStyle = mask;
+    c.fillRect(0, 0, S, S);
+    c.globalCompositeOperation = 'source-over';
+  }
+
+  // Marching squares on each class's margin over the others; their zero lines together form
+  // the decision boundary. Corners: 0 (i, j), 1 (i+1, j), 2 (i+1, j+1), 3 (i, j+1).
   const CASES = [[], [3, 0], [0, 1], [3, 1], [1, 2], [3, 2, 0, 1], [0, 2], [3, 2], [3, 2], [0, 2], [0, 3, 1, 2], [1, 2], [3, 1], [0, 1], [3, 0], []];
   function contours(f, res) {
     const segs = [];
-    const at = (i, j, c) => f[(j * res + i) * 3 + c];
     for (let c = 0; c < 3; c++) {
       for (let j = 0; j < res - 1; j++) {
         for (let i = 0; i < res - 1; i++) {
-          const v = [at(i, j, c), at(i + 1, j, c), at(i + 1, j + 1, c), at(i, j + 1, c)];
-          const id = (v[0] >= 0) | ((v[1] >= 0) << 1) | ((v[2] >= 0) << 2) | ((v[3] >= 0) << 3);
-          const e = CASES[id];
-          for (let s = 0; s < e.length; s += 2) {
-            for (const edge of [e[s], e[s + 1]]) {
-              const a = edge;
-              const b = (edge + 1) % 4;
-              const t = v[a] / (v[a] - v[b]);
-              const corner = [
-                [i, j],
-                [i + 1, j],
-                [i + 1, j + 1],
-                [i, j + 1],
-              ];
-              segs.push(corner[a][0] + (corner[b][0] - corner[a][0]) * t, corner[a][1] + (corner[b][1] - corner[a][1]) * t);
-            }
+          const q = (j * res + i) * 3 + c;
+          const v0 = f[q];
+          const v1 = f[q + 3];
+          const v2 = f[q + 3 * res + 3];
+          const v3 = f[q + 3 * res];
+          const id = (v0 >= 0) | ((v1 >= 0) << 1) | ((v2 >= 0) << 2) | ((v3 >= 0) << 3);
+          if (id === 0 || id === 15) continue;
+          for (const e of CASES[id]) {
+            if (e === 0) segs.push(i + v0 / (v0 - v1), j);
+            else if (e === 1) segs.push(i + 1, j + v1 / (v1 - v2));
+            else if (e === 2) segs.push(i + 1 - v2 / (v2 - v3), j + 1);
+            else segs.push(i, j + 1 - v3 / (v3 - v0));
           }
         }
       }
@@ -1010,29 +1080,31 @@ export function create({ stage, panel, reduced }) {
   /* ---------------------------------------------------------------- */
 
   function drawHeader() {
-    const strat = STRATS.find((t) => t.id === params.strategy);
-    const kicker = `Strategy · ${strat.id === 'gan' ? 'cGAN' : strat.label.toUpperCase()}`;
-    label(ctx, strat.id === 'gan' ? 'STRATEGY · cGAN' : kicker.toUpperCase(), L.textX, L.kick, { size: L.compact ? 10 : 11, track: 1.6, color: C.gold });
+    const name = params.strategy === 'gan' ? 'cGAN' : nameOf(params.strategy).toUpperCase();
     let meta = '';
-    if (run) meta = L.compact ? `seed ${run.k + 1}/${SEEDS}` : `seed ${run.k + 1} of ${SEEDS} · ${label_(run.id || params.strategy)}`;
-    else if (job && show.phase === 'gan') meta = `GAN step ${fmt.int(show.step)} / ${fmt.int(GAN.steps)}`;
-    else if (job && show.phase === 'search') meta = L.compact ? 'searching σ' : 'searching jitter strength';
-    else if (job) meta = `training step ${show.step} / ${CLF.steps}`;
-    else meta = L.compact ? '' : `balanced test set · ${3 * TEST_N} points`;
-    if (meta) label(ctx, meta, L.textX + L.narrW, L.kick, { size: L.compact ? 10 : 11, align: 'right', color: INK[3] });
-    labelFit(ctx, narration.text, L.textX, L.narr, L.narrW, { size: L.compact ? 16 : 19, minSize: L.compact ? 10.5 : 12, font: 'serif', italic: true, color: narration.tone });
+    if (run) meta = L.compact ? `seed ${run.k + 1}/${SEEDS}` : `seed ${run.k + 1} of ${SEEDS} · ${nameOf(run.id)}`;
+    else if (job && show.phase === 'gan' && show.gan) meta = `GAN step ${fmt.int(show.gan.step)}${L.compact ? '' : ` / ${fmt.int(GAN.steps)}`}`;
+    else if (job && show.phase === 'search') meta = L.compact ? 'σ search' : 'searching jitter strength';
+    else if (job) meta = `${L.compact ? 'step' : 'training step'} ${show.step} / ${CLF.steps}`;
+    else if (!L.compact) meta = `balanced test set · ${3 * TEST_N} points`;
+    if (L.compact) {
+      // Right-aligned beside the hint: "meta · STRATEGY".
+      const right = L.textX + L.textW;
+      label(ctx, name, right, L.kick, { size: 10, align: 'right', track: 1.6, color: C.gold });
+      if (meta) label(ctx, meta, right - textWidth(ctx, name, { size: 10 }) - name.length * 1.6 - 12, L.kick, { size: 10, align: 'right', color: INK[3] });
+    } else {
+      label(ctx, `STRATEGY · ${name}`, L.textX, L.kick, { size: 11, track: 1.6, color: C.gold });
+      if (meta) label(ctx, meta, L.textX + L.textW, L.kick, { size: 11, align: 'right', color: INK[3] });
+    }
+    labelFit(ctx, narration.text, L.textX, L.narr, L.textW, { size: L.compact ? 16 : 19, minSize: L.compact ? 10.5 : 12, font: 'serif', italic: true, color: narration.tone });
   }
 
-  function drawPlot(time) {
+  function drawPlot(now) {
     const { x, y, s } = L.plot;
     const d = show.data;
-    const now = performance.now();
     const rDot = L.compact ? 2.5 : 3.1;
 
     // Corner brackets frame the plot.
-    ctx.strokeStyle = INK[4];
-    ctx.lineWidth = 1;
-    const k = 10;
     ctx.beginPath();
     for (const [cx, cy, dx, dy] of [
       [x, y, 1, 1],
@@ -1040,55 +1112,42 @@ export function create({ stage, panel, reduced }) {
       [x, y + s, 1, -1],
       [x + s, y + s, -1, -1],
     ]) {
-      ctx.moveTo(cx + dx * k, cy);
+      ctx.moveTo(cx + dx * 10, cy);
       ctx.lineTo(cx, cy);
-      ctx.lineTo(cx, cy + dy * k);
+      ctx.lineTo(cx, cy + dy * 10);
     }
+    ctx.strokeStyle = INK[4];
+    ctx.lineWidth = 1;
     ctx.stroke();
 
     ctx.save();
     ctx.beginPath();
     ctx.rect(x, y, s, s);
     ctx.clip();
+    ctx.imageSmoothingEnabled = true;
 
-    // Field (with a short crossfade from the previous one).
-    const fadeIn = reduced ? 1 : easeOut((now - show.netAt) / 350);
-    if (prevAt > 0 && !reduced) {
+    // The decision field, crossfading from the previous classifier.
+    if (prevAt > 0) {
       const a = 1 - (now - prevAt) / 350;
       if (a > 0) {
         ctx.globalAlpha = a;
-        ctx.imageSmoothingEnabled = true;
-        ctx.drawImage(prevCanvas, x, y, s, s);
+        ctx.drawImage(prevLayer, x, y, s, s);
       } else prevAt = -1;
     }
     if (field) {
-      ctx.globalAlpha = fadeIn;
-      ctx.imageSmoothingEnabled = true;
-      ctx.drawImage(fieldCanvas, x, y, s, s);
-      const cell = s / field.res;
-      ctx.beginPath();
-      const g = field.segs;
-      for (let i = 0; i < g.length; i += 4) {
-        ctx.moveTo(x + (g[i] + 0.5) * cell, y + (g[i + 1] + 0.5) * cell);
-        ctx.lineTo(x + (g[i + 2] + 0.5) * cell, y + (g[i + 3] + 0.5) * cell);
-      }
-      ctx.strokeStyle = alpha(C.cream, 0.42);
-      ctx.lineWidth = 1;
-      ctx.lineCap = 'round';
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.globalAlpha = reduced ? 1 : easeOut((now - show.netAt) / 350);
+      ctx.drawImage(layer, x, y, s, s);
     }
     ctx.globalAlpha = 1;
 
     // Test points: + where the classifier is right, × where it is wrong.
-    if (params.showTest) {
+    if (params.showTest && preds) {
       d.test.forEach((p, i) => {
         const px = X(p.x);
         const py = Y(p.y);
-        const wrong = preds && preds[i] !== p.c;
-        const col = CLASSES[p.c].color;
-        ctx.beginPath();
+        const wrong = preds[i] !== p.c;
         const a = wrong ? 3.4 : 2.4;
+        ctx.beginPath();
         if (wrong) {
           ctx.moveTo(px - a, py - a);
           ctx.lineTo(px + a, py + a);
@@ -1100,97 +1159,79 @@ export function create({ stage, panel, reduced }) {
           ctx.moveTo(px, py - a);
           ctx.lineTo(px, py + a);
         }
-        ctx.strokeStyle = alpha(col, wrong ? 0.95 : 0.5);
+        ctx.strokeStyle = alpha(CLASSES[p.c].color, wrong ? 0.95 : 0.5);
         ctx.lineWidth = wrong ? 1.5 : 1;
         ctx.stroke();
       });
     }
 
-    // Duplicates: a halo whose size grows with the number of copies.
+    // Synthetic samples are rings; duplicates are a halo that grows with the number of copies.
     const born = reduced ? 1 : easeOut((now - show.born) / 450);
     if (show.halo) {
-      for (const [p, n] of show.halo) {
-        dot(ctx, X(p.x), Y(p.y), (rDot + 2 + 1.5 * Math.sqrt(n)) * (0.4 + 0.6 * born), null, alpha(CLASSES[p.c].color, 0.42 * born), 1);
-      }
+      for (const [p, n] of show.halo) dot(ctx, X(p.x), Y(p.y), (rDot + 2 + 1.5 * Math.sqrt(n)) * (0.4 + 0.6 * born), null, alpha(CLASSES[p.c].color, 0.42 * born), 1);
     } else {
-      // Synthetic samples: hollow rings.
       for (const p of show.synth) dot(ctx, X(p.x), Y(p.y), rDot + 0.3, null, alpha(CLASSES[p.c].color, 0.72 * born), 1.1);
     }
 
-    // The generator's samples, drifting into shape while the GAN trains.
-    const gan = show.gan && show.data.key === show.gan.key ? show.gan : null;
-    const fade = show.fade && now - show.fade.t0 < 600 ? show.fade : null;
-    for (const src of [gan, fade?.gan]) {
-      if (!src) continue;
-      const need = needOf(d.n);
-      const out = src === gan ? 1 : 1 - (now - fade.t0) / 600;
-      if (src === gan && reduced && src.step < GAN.steps && src.step % 100 !== 0 && src.pos) {
-        drawPreview(src.pos, need, rDot, 1);
-        continue;
-      }
-      src.pos = previewPositions(src, need);
-      drawPreview(src.pos, need, rDot, src === gan ? 1 : 0, out);
+    // The generator's samples drifting into shape while the GAN trains; when it stops, the
+    // ones not used as synthetic points fade away.
+    const need = needOf(d.n);
+    const gan = show.gan && show.gan.key === d.key ? show.gan : null;
+    if (gan) drawPreview(gan, need, rDot, 1, 1);
+    if (show.fade && show.fade.gan.key === d.key) {
+      const a = 1 - (now - show.fade.t0) / 700;
+      if (a > 0) drawPreview(show.fade.gan, need, rDot, 0, a);
+      else show.fade = null;
     }
 
-    // Real training points, on top; held-out validation points are dimmed.
+    // Real training points on top; points held out for validation are dimmed.
     for (const p of d.train) {
       const held = show.held && show.held.has(p);
       dot(ctx, X(p.x), Y(p.y), rDot, alpha(CLASSES[p.c].color, held ? 0.28 : 1), alpha(C.midnight, held ? 0.4 : 0.9), 1.2);
     }
     ctx.restore();
 
-    // Direct labels on the open side of the shapes (identity is never colour alone).
+    // Direct labels on the open side of the shapes, so identity is never colour alone.
     if (!L.compact) {
-      const n = d.n;
-      const tags = [
-        { c: 0, at: [0.6, 0.53], text: `crescent · ${n[0]}` },
-        { c: 2, at: [0.42, 0.3], text: `arc · ${n[2]}` },
-        { c: 1, at: [0.6, -0.04], text: `cluster · ${n[1]}` },
-      ];
-      for (const t of tags) {
-        const tx = X(t.at[0]);
-        const ty = Y(t.at[1]);
-        dot(ctx, tx, ty - 3.5, 2.6, CLASSES[t.c].color);
-        label(ctx, t.text, tx + 8, ty, { size: 10.5, color: INK[2] });
+      for (const [c, lx, ly] of [
+        [0, 0.6, 0.53],
+        [2, 0.42, 0.3],
+        [1, 0.6, -0.04],
+      ]) {
+        dot(ctx, X(lx), Y(ly) - 3.5, 2.6, CLASSES[c].color);
+        label(ctx, CLASSES[c].name, X(lx) + 8, Y(ly), { size: 10.5, color: INK[2] });
       }
     }
-    if (time && !reduced && show.phase === 'gan' && gan) glow(ctx, x + s - 14, y + 14, 10, C.amber, 0.35 + 0.2 * Math.sin(time * 5));
   }
 
-  function previewPositions(src, need) {
-    const pos = [];
-    for (let c = 0; c < 3; c++) {
-      const n = Math.max(need[c], PREVIEW);
-      for (let k = 0; k < n; k++) {
-        const g = generate(src.G, src.zs[c][k], c);
-        pos.push(c, k, g[0], g[1]);
+  // used: alpha of samples that become synthetic points; the others are drawn faintly.
+  function drawPreview(src, need, rDot, used, a) {
+    const snap = reduced && src === show.gan ? Math.floor(src.step / 100) : src.step;
+    if (src.posAt !== snap) {
+      src.posAt = snap;
+      src.pos = [];
+      for (let c = 0; c < 3; c++) {
+        for (let k = 0; k < Math.max(need[c], PREVIEW); k++) {
+          const g = generate(src.G, src.zs[c][k], c);
+          src.pos.push(c, k < need[c] ? 1 : 0, g[0], g[1]);
+        }
       }
     }
-    return pos;
-  }
-
-  // Preview rings: the ones that will become synthetic points at full strength, the
-  // generator's other samples faintly (they fade out when training ends).
-  function drawPreview(pos, need, rDot, extra = 1, out = 1) {
+    const pos = src.pos;
     for (let i = 0; i < pos.length; i += 4) {
-      const c = pos[i];
-      const used = pos[i + 1] < need[c];
-      const a = used ? 0.75 * out : 0.3 * extra * out;
-      if (a <= 0.01) continue;
-      const px = X(pos[i + 2]);
-      const py = Y(pos[i + 3]);
-      dot(ctx, px, py, rDot + 0.3, null, alpha(CLASSES[c].color, a), 1.1);
+      const strength = (pos[i + 1] ? 0.75 * used : 0.42) * a;
+      if (strength > 0.01) dot(ctx, X(pos[i + 2]), Y(pos[i + 3]), rDot + 0.3, null, alpha(CLASSES[pos[i]].color, strength), 1.1);
     }
   }
 
-  // Strategy rows: test accuracy and minority recall, this seed (ring) and over seeds
-  // (per-seed dots, mean ± sd).
+  // Strategy rows: test accuracy and minority recall for this seed (ring) and over the seeds
+  // run so far (one dot per seed, mean ± sd).
   function drawForest(time) {
     const F = L.forest;
     const compact = L.compact;
     const lw = compact ? 66 : 92;
-    const nw = compact ? 30 : 40;
-    const gap = compact ? 10 : 16;
+    const nw = compact ? 32 : 42;
+    const gap = compact ? 10 : 18;
     const cw = (F.w - lw - nw * 2 - gap) / 2;
     const cols = [
       { x: F.x + lw, lo: 0.5, hi: 1, title: compact ? 'Accuracy %' : 'Test accuracy %', get: (r) => r.acc, dec: 1, ticks: [0.5, 0.75, 1] },
@@ -1199,30 +1240,25 @@ export function create({ stage, panel, reduced }) {
     const px = (col, v) => col.x + clamp((v - col.lo) / (col.hi - col.lo)) * cw;
     const n = multi?.done || 0;
     label(ctx, 'Strategies', F.x, F.y + 10, { size: compact ? 9.5 : 10.5, upper: true, track: 1.6, color: C.gold });
-    const meta = n ? `${n} seed${n > 1 ? 's' : ''}${n < SEEDS ? ` of ${SEEDS}` : ''}` : 'this seed';
-    label(ctx, meta, F.x + F.w, F.y + 10, { size: compact ? 9.5 : 10, align: 'right', color: INK[3] });
-    const headY = F.y + (compact ? 26 : 32);
-    for (const col of cols) label(ctx, col.title, col.x, headY, { size: compact ? 8.5 : 9.5, upper: true, track: compact ? 0.6 : 1, color: INK[3] });
+    label(ctx, n ? `${n} of ${SEEDS} seeds` : 'this seed', F.x + F.w, F.y + 10, { size: compact ? 9.5 : 10, align: 'right', color: INK[3] });
+    for (const col of cols) label(ctx, col.title, col.x, F.y + F.head - 10, { size: compact ? 8.5 : 9.5, upper: true, track: compact ? 0.6 : 1, color: INK[3] });
     const rows = L.rows;
     const y0 = rows[0].y;
     const y1 = rows[rows.length - 1].y + rows[rows.length - 1].h;
-    // Hairline ticks shared by all rows.
     for (const col of cols) {
       for (const t of col.ticks) {
         const tx = px(col, t);
         line(ctx, tx, y0 + 3, tx, y1 - 3, INK.faint);
-        const txt = String(Math.round(t * 100));
-        label(ctx, txt, tx, y1 + (compact ? 10 : 12), { size: compact ? 8.5 : 9.5, align: t === col.lo ? 'left' : t === col.hi ? 'right' : 'center', color: INK[3] });
+        label(ctx, String(Math.round(t * 100)), tx, y1 + (compact ? 10 : 12), { size: compact ? 8.5 : 9.5, align: t === col.lo ? 'left' : t === col.hi ? 'right' : 'center', color: INK[3] });
       }
     }
-    // Best mean per column (only once there are several seeds).
-    const means = cols.map((col) => STRATS.map((t) => (n ? mean(multi.res[t.id].map(col.get)) : null)));
+    // The best mean in each column is gold, once there are at least two seeds.
+    const means = cols.map((col) => STRATS.map((t) => (n ? mean(multi.res[t.id].map(col.get)) : 0)));
     const best = means.map((m) => (n > 1 ? m.indexOf(Math.max(...m)) : -1));
     STRATS.forEach((t, i) => {
       const R = rows[i];
       const cy = R.y + R.h / 2;
       const selected = t.id === params.strategy;
-      const busy = (run && run.id === t.id) || (!run && job && selected);
       if (hover === i || selected) {
         roundRect(ctx, R.x, R.y + 1, R.w, R.h - 2, 8);
         ctx.fillStyle = selected ? alpha(C.cream, 0.05) : INK.faint;
@@ -1231,43 +1267,48 @@ export function create({ stage, panel, reduced }) {
       if (selected) dot(ctx, F.x + 2, cy, 2.6, C.amber);
       label(ctx, t.label, F.x + 12, cy, { size: compact ? 11 : 12, baseline: 'middle', color: selected ? C.cream : INK[2] });
       const r = single[t.id];
+      const busy = run ? run.id === t.id : job && selected;
       cols.forEach((col, ci) => {
         line(ctx, col.x, cy, col.x + cw, cy, INK.line);
         if (n) {
           const vals = multi.res[t.id].map(col.get);
           vals.forEach((v, k) => dot(ctx, px(col, v), cy + ((k % 3) - 1) * 2.4, compact ? 1.4 : 1.7, alpha(C.cream, 0.34)));
           if (vals.length > 1) {
-            const m = means[ci][i];
             const e = sd(vals);
-            const a = px(col, m - e);
-            const b = px(col, m + e);
-            line(ctx, a, cy, b, cy, alpha(C.cream, 0.85), 1.3);
-            line(ctx, a, cy - 3.5, a, cy + 3.5, alpha(C.cream, 0.85), 1.3);
-            line(ctx, b, cy - 3.5, b, cy + 3.5, alpha(C.cream, 0.85), 1.3);
+            const a = px(col, means[ci][i] - e);
+            const b = px(col, means[ci][i] + e);
+            const wc = alpha(C.cream, 0.85);
+            line(ctx, a, cy, b, cy, wc, 1.3);
+            line(ctx, a, cy - 3.5, a, cy + 3.5, wc, 1.3);
+            line(ctx, b, cy - 3.5, b, cy + 3.5, wc, 1.3);
           }
           dot(ctx, px(col, means[ci][i]), cy, compact ? 3 : 3.6, best[ci] === i ? C.gold : C.cream, C.midnight, 1.5);
         }
-        if (r && (!run || r.key === data.key)) dot(ctx, px(col, col.get(r)), cy, compact ? 4.2 : 5, null, selected ? C.amber : alpha(C.cream, 0.6), 1.3);
-        else if (busy && !reduced) glow(ctx, col.x + 6, cy, 9, C.amber, 0.35 + 0.25 * Math.sin(time * 6));
+        if (r) dot(ctx, px(col, col.get(r)), cy, compact ? 4.2 : 5, null, selected ? C.amber : alpha(C.cream, 0.6), 1.3);
+        else if (busy && !reduced && ci === 0) glow(ctx, col.x + 8, cy, 10, C.amber, 0.3 + 0.2 * Math.sin(time * 6));
         const v = n ? means[ci][i] : r ? col.get(r) : null;
-        const txt = v == null ? '—' : (v * 100).toFixed(col.dec);
-        label(ctx, txt, col.x + cw + nw - 2, cy, { size: compact ? 10 : 11, align: 'right', baseline: 'middle', color: selected ? C.cream : INK[2] });
+        label(ctx, v == null ? '—' : (v * 100).toFixed(col.dec), col.x + cw + nw - 2, cy, { size: compact ? 10 : 11, align: 'right', baseline: 'middle', color: selected ? C.cream : INK[2] });
       });
     });
     if (F.foot) {
       const fy = y1 + 34;
       let fx = F.x;
-      dot(ctx, fx + 5, fy - 3.5, 4.2, null, C.amber, 1.3);
-      label(ctx, 'this seed', fx + 14, fy, { size: 9.5, color: INK[3] });
-      fx += 14 + textWidth(ctx, 'this seed', { size: 9.5 }) + 16;
-      dot(ctx, fx + 4, fy - 3.5, 3.4, C.cream, C.midnight, 1.5);
-      line(ctx, fx - 4, fy - 3.5, fx + 12, fy - 3.5, alpha(C.cream, 0.85), 1.2);
-      label(ctx, `mean ± sd over ${SEEDS} seeds`, fx + 18, fy, { size: 9.5, color: INK[3] });
-      fx += 18 + textWidth(ctx, `mean ± sd over ${SEEDS} seeds`, { size: 9.5 }) + 16;
-      dot(ctx, fx + 2, fy - 3.5, 1.7, alpha(C.cream, 0.5));
-      label(ctx, 'one seed', fx + 9, fy, { size: 9.5, color: INK[3] });
+      const item = (draw, text) => {
+        draw(fx);
+        label(ctx, text, fx + 16, fy, { size: 9.5, color: INK[3] });
+        fx += 16 + textWidth(ctx, text, { size: 9.5 }) + 16;
+      };
+      item((x) => dot(ctx, x + 5, fy - 3.5, 4.2, null, C.amber, 1.3), 'this seed');
+      item((x) => {
+        line(ctx, x - 1, fy - 3.5, x + 11, fy - 3.5, alpha(C.cream, 0.85), 1.3);
+        dot(ctx, x + 5, fy - 3.5, 3.2, C.cream, C.midnight, 1.5);
+      }, 'mean ± sd');
+      item((x) => dot(ctx, x + 5, fy - 3.5, 1.7, alpha(C.cream, 0.5)), 'one seed');
     }
   }
+
+  // Real points in play: during the search, the held-out 30% are not trained on.
+  const realN = () => show.data.n.map((k, c) => k - (show.held ? show.heldN[c] : 0));
 
   function synthByClass() {
     const n = [0, 0, 0];
@@ -1275,139 +1316,129 @@ export function create({ stage, panel, reduced }) {
     return n;
   }
 
-  // Training set: real points (filled) and synthetic ones (outlined) per class.
+  // Training set: real points (filled) and synthetic ones (outlined), per class.
   function drawSet() {
     const S = L.set;
     if (!S) return;
-    const d = show.data;
     const add = synthByClass();
-    label(ctx, 'Training set', S.x, S.y + 10, { size: 10.5, upper: true, track: 1.6, color: C.gold });
-    label(ctx, 'real + synthetic', S.x + S.w, S.y + 10, { size: 10, align: 'right', color: INK[3] });
-    const nameW = 80;
-    const textW = 64;
-    const bw = S.w - nameW - textW;
+    const n = realN();
+    const small = L.compact;
+    label(ctx, 'Training set', S.x, S.y + 10, { size: small ? 9.5 : 10.5, upper: true, track: 1.6, color: C.gold });
+    label(ctx, 'real + synthetic', S.x + S.w, S.y + 10, { size: small ? 9.5 : 10, align: 'right', color: INK[3] });
+    const nameW = small ? 72 : 82;
+    const bw = S.w - nameW - (small ? 62 : 70);
     CLASSES.forEach((k, c) => {
-      const cy = S.y + 34 + c * 21;
+      const cy = S.y + 32 + c * 21;
       dot(ctx, S.x + 4, cy, 3.2, k.color);
-      label(ctx, k.name, S.x + 14, cy, { size: 11, baseline: 'middle', color: INK[2] });
+      label(ctx, k.name, S.x + 14, cy, { size: small ? 10.5 : 11, baseline: 'middle', color: INK[2] });
       const x0 = S.x + nameW;
-      const wReal = (d.n[c] / POOL) * bw;
-      const wAdd = (add[c] / POOL) * bw;
+      const wReal = (n[c] / POOL) * bw;
       roundRect(ctx, x0, cy - 4, Math.max(2, wReal), 8, 2);
       ctx.fillStyle = alpha(k.color, 0.85);
       ctx.fill();
       if (add[c] > 0) {
-        roundRect(ctx, x0 + wReal + 2, cy - 3.5, Math.max(2, wAdd - 2), 7, 2);
+        roundRect(ctx, x0 + wReal + 2, cy - 3.5, Math.max(2, (add[c] / POOL) * bw - 2), 7, 2);
         ctx.strokeStyle = alpha(k.color, 0.75);
         ctx.lineWidth = 1;
         ctx.stroke();
       }
-      const txt = add[c] ? `${d.n[c]} +${add[c]}` : String(d.n[c]);
-      label(ctx, txt, S.x + S.w, cy, { size: 11, align: 'right', baseline: 'middle', color: INK[2] });
+      label(ctx, add[c] ? `${n[c]} + ${add[c]}` : String(n[c]), S.x + S.w, cy, { size: small ? 10.5 : 11, align: 'right', baseline: 'middle', color: INK[2] });
     });
   }
 
-  // The strategy's own mechanism: the jitter search, the GAN's discriminator, or recall by class.
+  // The selected strategy's own mechanism: the jitter search, the GAN's discriminator, or
+  // (for none and duplication) recall by class.
   function drawContext(time) {
     const R = L.context;
     if (!R) return;
     const id = params.strategy;
-    const srch = show.search;
-    if (id === 'aug' && srch) return drawSearch(R, srch, time);
-    if (id === 'gan' && (show.gan || show.trace)) return drawTrace(R, show.gan ? show.gan.trace : show.trace, show.gan ? show.gan.step : show.ganStep);
-    drawRecall(R);
+    if (id === 'aug' && show.search) drawSearch(R, show.search, time);
+    else if (id === 'gan' && show.gan && show.gan.key === show.data.key) drawTrace(R, show.gan.trace, show.gan.step);
+    else if (id === 'gan' && show.trace) drawTrace(R, show.trace, show.ganStep);
+    else drawRecall(R);
   }
 
   function chartBox(R, title, meta) {
     label(ctx, title, R.x, R.y + 10, { size: 10.5, upper: true, track: 1.6, color: C.gold });
     if (meta) label(ctx, meta, R.x + R.w, R.y + 10, { size: 10, align: 'right', color: INK[3] });
-    return { x: R.x + 30, y: R.y + 28, w: R.w - 34, h: R.h - 28 - 22 };
+    return { x: R.x + 30, y: R.y + 30, w: R.w - 34, h: R.h - 30 - 24 };
   }
 
   function drawSearch(R, srch, time) {
-    const done = srch.best >= 0;
-    const B = chartBox(R, 'Jitter search', done ? `best σ = ${SIGMAS[srch.best]}` : 'validation score');
+    const B = chartBox(R, 'Jitter search', srch.best >= 0 ? `best σ = ${SIGMAS[srch.best]}` : 'validation score');
     const yOf = (v) => B.y + B.h - clamp((v - 0.5) / 0.5) * B.h;
+    const xOf = (i) => B.x + ((i + 0.5) * B.w) / SIGMAS.length;
     for (const t of [0.5, 0.75, 1]) {
       line(ctx, B.x, yOf(t), B.x + B.w, yOf(t), INK.faint);
       label(ctx, String(t * 100), B.x - 6, yOf(t), { size: 9.5, align: 'right', baseline: 'middle', color: INK[3] });
     }
-    const xOf = (i) => B.x + ((i + 0.5) * B.w) / SIGMAS.length;
     ctx.beginPath();
     srch.scores.forEach((e, i) => (i ? ctx.lineTo(xOf(i), yOf(e.bal)) : ctx.moveTo(xOf(i), yOf(e.bal))));
     ctx.strokeStyle = INK[3];
     ctx.lineWidth = 1.2;
     ctx.stroke();
+    label(ctx, 'σ', B.x - 6, B.y + B.h + 17, { size: 10, align: 'right', color: INK[3] });
     SIGMAS.forEach((sg, i) => {
       const e = srch.scores[i];
       const cx = xOf(i);
-      label(ctx, `.${String(Math.round(sg * 100)).padStart(2, '0')}`, cx, B.y + B.h + 16, { size: 9.5, align: 'center', color: i === srch.best ? C.cream : INK[3] });
+      label(ctx, sg.toFixed(2).slice(1), cx, B.y + B.h + 17, { size: 9.5, align: 'center', color: i === srch.best ? C.cream : INK[3] });
       if (i === srch.current) {
-        if (!reduced) glow(ctx, cx, yOf(e ? e.bal : 0.5), 12, C.amber, 0.35 + 0.2 * Math.sin(time * 6));
-        dot(ctx, cx, e ? yOf(e.bal) : B.y + B.h, 5, null, C.amber, 1.4);
+        if (!reduced) glow(ctx, cx, B.y + B.h, 12, C.amber, 0.3 + 0.2 * Math.sin(time * 6));
+        dot(ctx, cx, B.y + B.h, 4.5, null, C.amber, 1.4);
       }
-      if (!e) {
-        line(ctx, cx, B.y + B.h - 3, cx, B.y + B.h + 3, INK[4]);
-        return;
-      }
+      if (!e) return;
       if (i === srch.best) {
         if (!reduced) glow(ctx, cx, yOf(e.bal), 16, C.gold, 0.4);
         dot(ctx, cx, yOf(e.bal), 7.5, null, alpha(C.gold, 0.6), 1.2);
       }
       dot(ctx, cx, yOf(e.bal), i === srch.best ? 4 : 3, i === srch.best ? C.gold : C.cream, C.midnight, 1.4);
     });
-    label(ctx, 'σ', B.x - 6, B.y + B.h + 16, { size: 10, align: 'right', color: INK[3] });
   }
 
   function drawTrace(R, trace, step) {
-    const B = chartBox(R, 'cGAN · discriminator', `step ${fmt.int(step)} / ${fmt.int(GAN.steps)}`);
-    const yOf = (v) => B.y + B.h - clamp(v) * B.h;
-    const xOf = (i) => B.x + ((i * 10) / GAN.steps) * B.w;
-    for (const t of [0, 0.5, 1]) label(ctx, t.toFixed(1), B.x - 6, yOf(t), { size: 9.5, align: 'right', baseline: 'middle', color: INK[3] });
-    line(ctx, B.x, yOf(0), B.x + B.w, yOf(0), INK.faint);
-    line(ctx, B.x, yOf(1), B.x + B.w, yOf(1), INK.faint);
-    line(ctx, B.x, yOf(0.5), B.x + B.w, yOf(0.5), INK[4], 1, [3, 4]);
-    label(ctx, 'equilibrium: cannot tell real from fake', B.x + B.w, yOf(0.5) - 6, { size: 9.5, align: 'right', color: INK[3] });
-    const series = [
-      { k: 0, color: C.cream, name: 'D(real)' },
-      { k: 1, color: C.amber, name: 'D(fake)' },
-    ];
-    for (const s of series) {
-      if (!trace?.length) continue;
+    const B = chartBox(R, 'cGAN · distance to real points', `step ${fmt.int(step)} / ${fmt.int(GAN.steps)}`);
+    const top = 0.6;
+    const yOf = (v) => B.y + B.h - clamp(v / top) * B.h;
+    const xOf = (i) => B.x + ((i * 20) / GAN.steps) * B.w;
+    for (const t of [0, 0.3, 0.6]) {
+      line(ctx, B.x, yOf(t), B.x + B.w, yOf(t), INK.faint);
+      label(ctx, t.toFixed(1), B.x - 6, yOf(t), { size: 9.5, align: 'right', baseline: 'middle', color: INK[3] });
+    }
+    label(ctx, 'lower = closer to the real shape', B.x + B.w, B.y - 4, { size: 9.5, align: 'right', color: INK[3] });
+    CLASSES.forEach((k, c) => {
+      if (!trace?.length) return;
       ctx.beginPath();
-      trace.forEach((v, i) => (i ? ctx.lineTo(xOf(i), yOf(v[s.k])) : ctx.moveTo(xOf(i), yOf(v[s.k]))));
-      ctx.strokeStyle = s.color;
+      trace.forEach((v, i) => (i ? ctx.lineTo(xOf(i), yOf(v[c])) : ctx.moveTo(xOf(i), yOf(v[c]))));
+      ctx.strokeStyle = alpha(k.color, 0.9);
       ctx.lineWidth = 1.5;
       ctx.lineJoin = 'round';
       ctx.stroke();
-      const lx = xOf(trace.length - 1);
-      const ly = yOf(trace[trace.length - 1][s.k]);
-      dot(ctx, lx, ly, 2.6, s.color);
-    }
+      dot(ctx, xOf(trace.length - 1), yOf(trace[trace.length - 1][c]), 2.6, k.color);
+    });
     let lx = B.x;
-    const ly = B.y + B.h + 16;
-    for (const s of series) {
-      line(ctx, lx, ly - 3.5, lx + 12, ly - 3.5, s.color, 1.5);
-      label(ctx, s.name, lx + 17, ly, { size: 9.5, color: INK[2] });
-      lx += 17 + textWidth(ctx, s.name, { size: 9.5 }) + 18;
-    }
+    const ly = B.y + B.h + 17;
+    CLASSES.forEach((k) => {
+      line(ctx, lx, ly - 3.5, lx + 12, ly - 3.5, k.color, 1.5);
+      label(ctx, k.name, lx + 17, ly, { size: 9.5, color: INK[2] });
+      lx += 17 + textWidth(ctx, k.name, { size: 9.5 }) + 18;
+    });
   }
 
   function drawRecall(R) {
     const r = show.result && show.result.id === params.strategy ? show.result : null;
-    const B = chartBox(R, 'Recall by class', 'this seed');
-    const nameW = 80;
-    const bw = B.w + 34 - nameW - 48;
+    chartBox(R, 'Recall by class', `seed ${show.data.seed}`);
+    const nameW = 82;
+    const bw = R.w - nameW - 52;
+    const rowH = Math.min(26, (R.h - 34) / 3);
     CLASSES.forEach((k, c) => {
-      const cy = B.y + 10 + c * Math.min(26, (B.h + 10) / 3);
+      const cy = R.y + 38 + c * rowH;
       dot(ctx, R.x + 4, cy, 3.2, k.color);
       label(ctx, k.name, R.x + 14, cy, { size: 11, baseline: 'middle', color: INK[2] });
-      const x0 = R.x + nameW;
-      roundRect(ctx, x0, cy - 4, bw, 8, 2);
+      roundRect(ctx, R.x + nameW, cy - 4, bw, 8, 2);
       ctx.fillStyle = INK.faint;
       ctx.fill();
       if (r) {
-        roundRect(ctx, x0, cy - 4, Math.max(2, r.recall[c] * bw), 8, 2);
+        roundRect(ctx, R.x + nameW, cy - 4, Math.max(2, r.recall[c] * bw), 8, 2);
         ctx.fillStyle = alpha(k.color, 0.85);
         ctx.fill();
       }
@@ -1420,14 +1451,14 @@ export function create({ stage, panel, reduced }) {
     const S = L.side;
     if (!S) return;
     const add = synthByClass();
-    const d = show.data;
+    const n = realN();
     label(ctx, 'Train set', S.x, S.y + 8, { size: 9.5, upper: true, track: 1.2, color: C.gold });
     CLASSES.forEach((k, c) => {
       const cy = S.y + 28 + c * 20;
       dot(ctx, S.x + 3.5, cy, 3, k.color);
-      label(ctx, add[c] ? `${d.n[c]}+${add[c]}` : String(d.n[c]), S.x + 12, cy, { size: 10, baseline: 'middle', color: INK[2] });
+      label(ctx, add[c] ? `${n[c]}+${add[c]}` : String(n[c]), S.x + 12, cy, { size: 10, baseline: 'middle', color: INK[2] });
     });
-    const y = S.y + 104;
+    const y = S.y + 106;
     const r = show.result && show.result.id === params.strategy ? show.result : null;
     let head = 'Arc recall';
     let big = r ? pct(r.recall[2], 0) : '—';
@@ -1440,7 +1471,7 @@ export function create({ stage, panel, reduced }) {
     }
     label(ctx, head, S.x, y, { size: 9.5, upper: true, track: 1.2, color: INK[3] });
     label(ctx, big, S.x, y + 30, { size: 28, font: 'serif', color: C.cream });
-    if (params.strategy === 'aug' && show.search?.best >= 0 && r) label(ctx, `σ = ${SIGMAS[show.search.best]}`, S.x, y + 50, { size: 10, color: INK[3] });
+    if (r && r.id === 'aug' && r.search?.best >= 0) label(ctx, `σ = ${SIGMAS[r.search.best]}`, S.x, y + 52, { size: 10, color: INK[3] });
   }
 
   /* ---------------------------------------------------------------- */
@@ -1449,28 +1480,27 @@ export function create({ stage, panel, reduced }) {
 
   const tick = loop((dt, time) => {
     pump();
-    if (pending && performance.now() >= pending) trainLive(params.strategy);
-    if (!L.plot) layout(view);
+    const now = performance.now();
+    if (pending && now >= pending) trainLive(params.strategy);
     if (show.dirty) computeField();
     view.clear();
     drawHeader();
-    drawPlot(time);
+    drawPlot(now);
     drawForest(time);
     drawSet();
     drawContext(time);
     drawSide();
-    if (job) refresh();
+    if (job && now - refreshedAt > 150) refresh();
     const d = show.data;
-    const added = synthByClass().reduce((a, b) => a + b, 0);
-    const runTxt = run ? ` · run ${run.k + 1}/${SEEDS}` : '';
+    const added = show.synth.length;
+    const extra = run ? ` · run ${run.k + 1}/${SEEDS}` : '';
     stat.set(
       L.compact
-        ? `seed ${d.seed} · ${d.n.join('/')} · +${added}${runTxt}`
-        : `seed ${d.seed} · train ${d.n.join('/')} · test ${TEST_N}/${TEST_N}/${TEST_N} · +${fmt.int(added)} synthetic${ganCache ? ` · GAN ${fmt.int(ganCache.step)} steps` : ''}${runTxt}`,
+        ? `seed ${d.seed} · ${d.n.join('/')} · +${added} synthetic${extra}`
+        : `seed ${d.seed} · train ${d.n.join(' / ')} · test ${TEST_N} / ${TEST_N} / ${TEST_N} · +${fmt.int(added)} synthetic${extra}`,
     );
   });
 
-  narrate(`${data.n.join(' : ')} training points; the test set stays balanced at ${TEST_N} per class.`);
   trainLive('none');
 
   return {

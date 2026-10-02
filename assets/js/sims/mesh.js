@@ -461,6 +461,7 @@ export function create({ stage, panel, reduced }) {
     run.of = of;
     resetView();
     run.begin();
+    tip.hide();
     const m = MODES[cfg.mode];
     setNarration(
       of
@@ -716,7 +717,8 @@ export function create({ stage, panel, reduced }) {
   const view = stageCanvas(stage, { onResize: layout });
   const { ctx } = view;
   const stat = status(stage);
-  const tip = hint(stage, 'Tap a task to follow it');
+  const verb = window.matchMedia('(pointer: coarse)').matches ? 'Tap' : 'Click';
+  const tip = hint(stage, `${verb} a task to follow it`);
   const ptr = pointer(view.canvas, {
     down: (p) => {
       const row = (L.rows || []).find((r) => inside(p, r));
@@ -753,16 +755,18 @@ export function create({ stage, panel, reduced }) {
     const w = v.w;
     const h = v.h;
     L.compact = w < 620 || h < 480;
+    L.narrow = w < 540;
     L.big = !L.compact && h >= 640 && w >= 900;
+    const k = L.big ? clamp(Math.min(w / 1050, h / 740), 1, 1.25) : 1; // grow a little on large stages
     const pad = Math.max(16, Math.min(40, w * 0.04));
     L.pad = pad;
-    L.kickerY = L.compact ? 48 : 56;
-    L.narrY = L.compact ? 74 : 88;
-    const top = L.narrY + (L.compact ? 14 : 22);
-    const bottom = h - (L.compact ? 34 : 44);
-    const gap = L.compact ? 14 : 24;
+    L.kickerY = L.compact ? 60 : 64;
+    L.narrY = L.compact ? 84 : 96;
+    const top = L.narrY + (L.compact ? 12 : 22);
+    const bottom = h - (L.compact ? 32 : 44);
+    const gap = L.compact ? 12 : 24;
     const avail = bottom - top;
-    const stripH = clamp(avail * 0.36, L.compact ? 112 : 140, 230);
+    const stripH = clamp(avail * 0.36, L.compact ? 112 : 140, 230 * k);
     const m = { x: pad, y: top, w: w - pad * 2, h: avail - stripH - gap };
     L.mesh = m;
     const cw = Math.round((w - pad * 2 - gap) * 0.54);
@@ -770,10 +774,10 @@ export function create({ stage, panel, reduced }) {
     L.log = { x: pad + cw + gap, y: L.chart.y, w: w - pad * 2 - cw - gap, h: stripH };
 
     // Cards, stations and the grid they sit on.
-    L.tok = L.big ? { step: 7, r: 2.6, h: 30, id: 10, pad: 10, minW: 36 } : { step: 5.2, r: 2, h: 22, id: 8.5, pad: 8, minW: 28 };
-    const band = L.big ? 18 : 14;
-    const padB = L.big ? 8 : 6;
-    L.st = { w: Math.round(8 * L.tok.step + L.tok.pad + (L.big ? 12 : 10)), h: band + L.tok.h + padB, band, slot: (band - padB) / 2 };
+    L.tok = L.big ? { step: 8 * k, r: 2.9 * k, h: 32 * k, id: 10.5 * k, pad: 12 * k, minW: 40 * k } : { step: 5.2, r: 2, h: 22, id: 8.5, pad: 8, minW: 28 };
+    const band = L.big ? 18 * k : 14;
+    const padB = L.big ? 8 * k : 6;
+    L.st = { w: Math.round(8 * L.tok.step + L.tok.pad + (L.big ? 12 * k : 10)), h: band + L.tok.h + padB, band, slot: (band - padB) / 2 };
     const st = L.st;
     const trayH = clamp(m.h * 0.27, 44, 96);
     const yA = m.y + st.h / 2 + (L.compact ? 6 : 10);
@@ -813,10 +817,8 @@ export function create({ stage, panel, reduced }) {
       { a: 'exec', b: 'unsolved', bend: 0.12, tone: 'fail', note: 'out of rounds' },
       { a: 'review', b: 'unsolved', bend: -0.12, tone: 'fail' },
     ].map((e) => {
-      const A = L.nodes[e.a];
-      const B = L.nodes[e.b];
-      const pts = curve(e, A, B);
-      return { ...e, key: `${e.a}>${e.b}`, pts, tip: tipOf(pts, B) };
+      const pts = curve(e, L.nodes[e.a], L.nodes[e.b]);
+      return { ...e, key: `${e.a}>${e.b}`, pts, ...visible(pts, L.nodes[e.a], L.nodes[e.b]) };
     });
   }
 
@@ -836,19 +838,18 @@ export function create({ stage, panel, reduced }) {
     return [x1, y1, (x1 + x2) / 2 + nx * b, (y1 + y2) / 2 + ny * b, x2, y2];
   }
 
-  // Where a curve enters its target box, and the heading there.
-  function tipOf(pts, B) {
-    const inB = (x, y) => Math.abs(x - B.x) <= B.w / 2 + 3 && Math.abs(y - B.y) <= B.h / 2 + 3;
-    let prev = quadAt(...pts, 1);
-    for (let i = 60; i >= 0; i--) {
-      const [x, y] = quadAt(...pts, i / 60);
-      if (!inB(x, y)) {
-        const a = Math.atan2(prev[1] - y, prev[0] - x);
-        return { x, y, a };
-      }
-      prev = [x, y];
-    }
-    return null;
+  // The stretch of a curve between its two boxes, and the arrow where it meets the target.
+  function visible(pts, A, B) {
+    const inBox = (P, [x, y]) => Math.abs(x - P.x) <= P.w / 2 + 3 && Math.abs(y - P.y) <= P.h / 2 + 3;
+    const N = 80;
+    let t0 = 0;
+    let t1 = 1;
+    while (t0 < 1 && inBox(A, quadAt(...pts, t0))) t0 += 1 / N;
+    while (t1 > t0 && inBox(B, quadAt(...pts, t1))) t1 -= 1 / N;
+    const path = Array.from({ length: 25 }, (_, i) => quadAt(...pts, lerp(t0, t1, i / 24)));
+    const [ax, ay] = path[23];
+    const [bx, by] = path[24];
+    return { path, tip: { x: bx, y: by, a: Math.atan2(by - ay, bx - ax) } };
   }
 
   // Cells of the queue and the trays: the largest grid of mini-cards that fits n.
@@ -888,7 +889,7 @@ export function create({ stage, panel, reduced }) {
 
   const tokenW = (t) => Math.max(L.tok.minW, t.T * L.tok.step + L.tok.pad);
   const slot = (key) => ({ x: L.nodes[key].x, y: L.nodes[key].y + L.st.slot });
-  const settle = (dt) => easeOut(clamp(dt / (0.28 * Math.max(1, params.speed || 1))));
+  const settle = (dt) => easeOut(clamp(dt / (0.3 * Math.max(1, params.speed || 1))));
 
   // Where a node sits for a given task: its own cell on a board, or a station's slot.
   function anchor(key, t) {
@@ -903,39 +904,38 @@ export function create({ stage, panel, reduced }) {
     return slot(key);
   }
 
-  function waitPos(t) {
-    const S = L.nodes[t.at];
-    const k = run.roles[t.at].queue.indexOf(t);
-    return { x: S.x + 4 + 5 * k, y: S.y - S.h / 2 + L.tok.h / 2 - 5 - 4 * k };
+  // The k-th card waiting behind a station peeks out above its top edge.
+  function waitPos(key, k) {
+    const S = L.nodes[key];
+    const j = Math.min(k, 3);
+    return { x: S.x + 5 + 4 * j, y: S.y - S.h / 2 + L.tok.h / 2 - 4 - 3.5 * j };
   }
 
   // Position, scale and layer of a task card this frame (null when it is a cell).
   function place(t) {
     const c = run.clock;
     if (t.loc === 'hop') {
-      const e = L.edges.find((E) => E.a === t.hop.from && E.b === t.hop.to);
+      const { from, to } = t.hop;
+      const e = L.edges.find((E) => E.a === from && E.b === to);
       const u = clamp((c - t.hop.t0) / (t.hop.t1 - t.hop.t0));
-      const pts = curve(e, anchor(t.hop.from, t), anchor(t.hop.to, t));
-      const [x, y] = quadAt(...pts, easeInOut(u));
+      const [x, y] = quadAt(...curve(e, anchor(from, t), anchor(to, t)), easeInOut(u));
       let scale = 1;
-      if (t.hop.from === 'queue') scale = Math.min(1, 0.35 + u * 1.6);
-      if (t.hop.to === 'solved' || t.hop.to === 'unsolved') scale = Math.min(1, 0.35 + (1 - u) * 1.6);
-      return { x, y, scale, over: true, edge: e.key };
-    }
-    if (t.loc === 'wait') {
-      const from = slot(t.at);
-      const to = waitPos(t);
-      const k = settle(c - t.arrivedAt);
-      return { x: lerp(from.x, to.x, k), y: lerp(from.y, to.y, k), scale: 1, over: k < 1 };
-    }
-    if (t.loc === 'serve') {
-      const to = slot(t.at);
-      if (t.serve.t0 > t.arrivedAt + 1e-6) {
-        const k = settle(c - t.serve.t0);
-        const from = { x: to.x + 4, y: L.nodes[t.at].y - L.nodes[t.at].h / 2 + L.tok.h / 2 - 5 };
-        return { x: lerp(from.x, to.x, k), y: lerp(from.y, to.y, k), scale: 1, over: true };
+      if (from === 'queue') scale = Math.min(1, 0.35 + u * 1.6);
+      if (to === 'solved' || to === 'unsolved') scale = Math.min(1, 0.35 + (1 - u) * 1.6);
+      // A card bound for a busy station slides in under it, onto the waiting stack.
+      let over = true;
+      const R = run.roles[to];
+      if (R && R.busy) {
+        const S = L.nodes[to];
+        over = Math.abs(x - S.x) >= (S.w + tokenW(t) * scale) / 2 || Math.abs(y - S.y) >= (S.h + L.tok.h * scale) / 2;
       }
-      return { ...to, scale: 1, over: true };
+      return { x, y, scale, over, edge: e.key };
+    }
+    if (t.loc === 'wait') return { ...waitPos(t.at, run.roles[t.at].queue.indexOf(t)), scale: 1, over: false, sliver: true };
+    if (t.loc === 'serve') {
+      // Taken off the stack, the card settles into the slot as the previous one leaves.
+      const fade = t.serve.t0 > t.arrivedAt + 1e-6 ? settle(c - t.serve.t0) : 1;
+      return { ...slot(t.at), scale: 1, over: true, fade };
     }
     return null;
   }
@@ -973,7 +973,7 @@ export function create({ stage, panel, reduced }) {
     }
     const lw = textWidth(ctx, left.toUpperCase(), { size: 11 }) + left.length * 1.6;
     if (right && lw + textWidth(ctx, right, { size: 10.5 }) + 24 < w) label(ctx, right, x + w, L.kickerY, { size: 10.5, align: 'right', color: tone });
-    const text = L.compact ? narration.short : narration.text;
+    const text = L.narrow ? narration.short : narration.text;
     labelFit(ctx, text, x, L.narrY, w, { size: L.compact ? 16 : 19, minSize: L.compact ? 11 : 12, font: 'serif', italic: true, color: narration.tone });
   }
 
@@ -994,16 +994,14 @@ export function create({ stage, panel, reduced }) {
       const col = edgeColor(e);
       const a = dead ? 0.07 : 0.16 + 0.42 * hk;
       const stroke = hk > 0.02 && !dead ? alpha(col, a) : alpha(C.cream, dead ? 0.07 : 0.16);
-      const [x1, y1, cx, cy, x2, y2] = e.pts;
       ctx.beginPath();
-      ctx.moveTo(x1, y1);
-      ctx.quadraticCurveTo(cx, cy, x2, y2);
+      e.path.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
       ctx.strokeStyle = stroke;
       ctx.lineWidth = 1.2 + 0.4 * hk;
       ctx.setLineDash(dead ? [2, 5] : e.tone === 'trace' && run.cfg.mode === 'blind' ? [4, 4] : []);
       ctx.stroke();
       ctx.setLineDash([]);
-      if (e.tip) {
+      {
         const s = L.big ? 6 : 5;
         const { x, y, a: ang } = e.tip;
         ctx.beginPath();
@@ -1021,13 +1019,13 @@ export function create({ stage, panel, reduced }) {
   function drawEdgeNotes() {
     if (L.compact) {
       const e = L.edges.find((E) => E.key === 'review>code');
-      const [x, y] = quadAt(...e.pts, 0.5);
+      const [x, y] = e.path[12];
       label(ctx, 'revise', x + 6, y - 4, { size: 9, color: INK[4] });
       return;
     }
     for (const e of L.edges) {
       if (!e.note) continue;
-      const [x, y] = quadAt(...e.pts, 0.5);
+      const [x, y] = e.path[12];
       let text = e.note;
       if (e.key === 'exec>unsolved' && run.cfg.mode === 'none') text = 'no repair';
       if (e.key === 'exec>review') label(ctx, text, x, y - 9, { size: 9.5, align: 'center', color: INK[4] });
@@ -1051,7 +1049,7 @@ export function create({ stage, panel, reduced }) {
     label(ctx, String(count), B.x + B.w / 2 - inset, ty, { size: L.big ? 11 : 9, align: 'right', color: tone || INK[2] });
   }
 
-  function miniCard(c, t, fill, stroke, text) {
+  function miniCard(c, t, fill, stroke, text, ring) {
     roundRect(ctx, c.x, c.y, c.w, c.h, Math.min(3, c.h / 3));
     if (fill) {
       ctx.fillStyle = fill;
@@ -1063,7 +1061,7 @@ export function create({ stage, panel, reduced }) {
       ctx.stroke();
     }
     if (c.h >= 11 && c.w >= 18) label(ctx, t.label, c.x + c.w / 2, c.y + c.h / 2 + 0.5, { size: Math.min(10, c.h * 0.62), align: 'center', baseline: 'middle', color: text });
-    if (t.id === focus && (run.started || pinned)) {
+    if (ring && t.id === focus && ((run.started && !run.done) || pinned)) {
       roundRect(ctx, c.x - 2.5, c.y - 2.5, c.w + 5, c.h + 5, 4);
       ctx.strokeStyle = C.cream;
       ctx.lineWidth = 1.2;
@@ -1077,9 +1075,10 @@ export function create({ stage, panel, reduced }) {
     board('queue', 'Queue', waiting);
     for (const t of run.tasks) {
       const c = cell('queue', t.id, n);
-      if (t.loc === 'queue') miniCard(c, t, alpha(C.cream, 0.12), alpha(C.cream, 0.45), INK[2]);
-      else miniCard(c, t, null, alpha(C.cream, 0.1), INK[4]);
-      L.hits.push({ ...c, id: t.id });
+      if (t.loc === 'queue') {
+        miniCard(c, t, alpha(C.cream, 0.12), alpha(C.cream, 0.45), INK[2], true);
+        L.hits.push({ ...c, id: t.id });
+      } else miniCard(c, t, null, alpha(C.cream, 0.1), INK[4], false);
     }
     for (const key of ['solved', 'unsolved']) {
       const tone = key === 'solved' ? C.gold : C.ember;
@@ -1087,7 +1086,7 @@ export function create({ stage, panel, reduced }) {
       board(key, L.compact ? key : key === 'solved' ? 'Solved' : 'Unsolved', shown.length, tone);
       for (const t of shown) {
         const c = cell(key, t.slot, n);
-        miniCard(c, t, alpha(tone, 0.85), null, C.midnight);
+        miniCard(c, t, alpha(tone, 0.85), null, C.midnight, true);
         L.hits.push({ ...c, id: t.id });
       }
     }
@@ -1158,7 +1157,7 @@ export function create({ stage, panel, reduced }) {
     } else {
       glyph(key, sl.x, sl.y, off ? alpha(C.cream, 0.14) : INK[4]);
     }
-    if (R.queue.length) label(ctx, `+${R.queue.length} waiting`, x0, y0 - 5, { size: L.big ? 9.5 : 8, color: C.amber });
+    if (R.queue.length) label(ctx, `${R.queue.length} waiting`, x0, y0 - (L.big ? 7 : 5), { size: L.big ? 9.5 : 8, align: 'right', color: C.amber });
   }
 
   function dotView(t, j) {
@@ -1216,7 +1215,19 @@ export function create({ stage, panel, reduced }) {
       const p = place(t);
       if (!p || p.over !== layer) continue;
       if (p.edge) heat[p.edge] = 1;
+      if (p.sliver) {
+        const w = tokenW(t);
+        roundRect(ctx, p.x - w / 2, p.y - L.tok.h / 2, w, L.tok.h, 6);
+        ctx.fillStyle = alpha(C.midnight, 0.96);
+        ctx.fill();
+        ctx.strokeStyle = t.id === focus ? C.cream : alpha(C.cream, 0.38);
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        continue;
+      }
+      ctx.globalAlpha = p.fade ?? 1;
       drawToken(t, p.x, p.y, p.scale);
+      ctx.globalAlpha = 1;
       const w = tokenW(t) * p.scale;
       const h = L.tok.h * p.scale;
       if (layer) L.hits.push({ x: p.x - w / 2, y: p.y - h / 2, w, h, id: t.id });
@@ -1231,33 +1242,42 @@ export function create({ stage, panel, reduced }) {
     const nx = D.x - D.w / 2 - (L.compact ? 8 : 14);
     if (nx - L.mesh.x > 30) labelFit(ctx, note, nx, D.y + 3, nx - L.mesh.x, { size: L.big ? 10.5 : 9, minSize: 8, align: 'right', color: mode === 'exec' ? C.amber : INK[4] });
 
-    const ex = run.lastExec;
-    const fs = L.big ? 10.5 : 9;
-    const lh = L.big ? 17 : 13;
-    let y = B.y + (L.big ? 12 : 9);
     const busy = run.roles.exec.busy;
-    label(ctx, L.compact ? 'Last test run' : 'Executor · last test run', B.x, y, { size: L.big ? 10 : 8.5, upper: true, track: L.big ? 1.4 : 0.8, color: busy ? C.amber : INK[3] });
-    if (ex) label(ctx, `#${ex.t.label}${ex.round ? ` · round ${ex.round}` : ''}`, B.x + B.w, y, { size: fs, align: 'right', color: INK[3] });
-    y += lh + (L.big ? 3 : 1);
+    roundRect(ctx, B.x, B.y, B.w, B.h, L.big ? 12 : 9);
+    ctx.fillStyle = alpha(C.midnight, 0.6);
+    ctx.fill();
+    ctx.strokeStyle = busy ? alpha(C.amber, 0.35) : alpha(C.cream, 0.14);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    const ex = run.lastExec;
+    const inset = L.big ? 12 : 7;
+    const x = B.x + inset;
+    const w = B.w - inset * 2;
+    const fs = L.big ? 10.5 : 8.5;
+    const lh = L.big ? 17 : 12;
+    let y = B.y + (L.big ? 16 : 11.5);
+    label(ctx, L.compact ? 'Last test run' : 'Executor · last test run', x, y, { size: L.big ? 10 : 8.5, upper: true, track: L.big ? 1.4 : 0.6, color: busy ? C.amber : INK[3] });
+    if (ex) label(ctx, `#${ex.t.label}${ex.round ? ` · round ${ex.round}` : ''}`, x + w, y, { size: fs, align: 'right', color: INK[3] });
+    y += lh + (L.big ? 4 : 1);
     if (!ex) {
-      label(ctx, run.started ? 'waiting for the first test run…' : 'no tests run yet', B.x, y, { size: fs, color: INK[4] });
+      label(ctx, run.started ? 'waiting for the first test run…' : 'no tests run yet', x, y, { size: fs, color: INK[4] });
       return;
     }
-    const room = Math.floor((B.y + B.h - y + 4) / lh) - 1;
-    const shown = ex.fails.slice(0, Math.max(0, room));
-    for (const f of shown) {
+    const room = Math.floor((B.y + B.h - 6 - y) / lh);
+    const failed = ex.fails.length;
+    for (const f of ex.fails.slice(0, Math.max(0, room))) {
       const head = 'FAILED ';
-      label(ctx, head, B.x, y, { size: fs, color: C.ember });
+      label(ctx, head, x, y, { size: fs, color: C.ember });
       const hw = textWidth(ctx, head, { size: fs });
-      const detail = L.compact ? f.name : `${f.name} - ${f.err}: ${f.msg}`;
-      labelFit(ctx, detail, B.x + hw, y, B.w - hw, { size: fs, minSize: 7.5, color: INK[2] });
+      const full = `${f.name} - ${f.err}: ${f.msg}`;
+      const detail = L.compact ? f.name : textWidth(ctx, full, { size: fs }) <= w - hw ? full : `${f.name} - ${f.err}`;
+      labelFit(ctx, detail, x + hw, y, w - hw, { size: fs, minSize: 7, color: INK[2] });
       y += lh;
     }
-    const failed = ex.fails.length;
     const sum = failed ? `${failed} failed, ${ex.passed} passed in ${ex.dur.toFixed(1)}s` : `${ex.passed} passed in ${ex.dur.toFixed(1)}s`;
     let tail = '';
     if (failed && !L.compact) tail = mode === 'exec' ? ' · trace → Debugger' : mode === 'blind' ? ' · trace withheld' : '';
-    label(ctx, sum + tail, B.x, y, { size: fs, color: failed ? INK[3] : C.gold });
+    labelFit(ctx, sum + tail, x, y, w, { size: fs, minSize: 7, color: failed ? INK[3] : C.gold });
   }
 
   function drawMesh(time, dt) {
@@ -1278,7 +1298,8 @@ export function create({ stage, panel, reduced }) {
     const prev = runs.filter((e) => e !== finished).slice(-5);
     const cur = run.started ? (finished ? finished.curve : curveOf(run, false)) : null;
     const xMax = Math.max(1, run.cfg.rounds, ...prev.map((e) => e.cfg.rounds));
-    const endRoom = L.compact ? 44 : 78;
+    const tagSize = L.compact ? 8.5 : 9.5;
+    const endRoom = textWidth(ctx, L.compact ? 'blind 100%' : 'blind 100% ≡#00', { size: tagSize }) + 10;
     const rect = { x: c.x, y: c.y + 18, w: c.w - endRoom, h: c.h - 18 };
     const series = prev.map((e) => ({ points: e.curve, color: alpha(C.cream, 0.3), width: 1.2, dash: DASH[e.cfg.mode] }));
     if (cur) series.push({ points: cur, color: C.cream, width: 1.8, dash: DASH[run.cfg.mode] });
@@ -1296,7 +1317,7 @@ export function create({ stage, panel, reduced }) {
     const tags = [];
     if (cur) {
       const [lx, ly] = cur[cur.length - 1];
-      const same = finished && finished.same ? ` ≡#${finished.same}` : '';
+      const same = finished && finished.same && !L.compact ? ` ≡#${finished.same}` : '';
       tags.push({ x: X(lx), y: Y(ly), text: `${MODES[run.cfg.mode].short} ${Math.round(ly * 100)}%${same}`, color: C.cream });
     }
     const seen = new Set([cur ? run.cfg.mode : '']);
@@ -1314,13 +1335,13 @@ export function create({ stage, panel, reduced }) {
       const limit = i === tags.length - 1 ? floor : tags[i + 1].y - minGap;
       tags[i].y = Math.min(tags[i].y, limit);
     }
-    for (const tg of tags) label(ctx, tg.text, tg.x + 7, tg.y, { size: L.compact ? 8.5 : 9.5, baseline: 'middle', color: tg.color });
+    for (const tg of tags) label(ctx, tg.text, tg.x + 7, tg.y, { size: tagSize, baseline: 'middle', color: tg.color });
   }
 
   function drawLog() {
     const g = L.log;
     label(ctx, L.compact ? 'Run log' : 'Reproducibility log', g.x, g.y + 10, { size: L.compact ? 10 : 11, upper: true, track: L.compact ? 1 : 1.6, color: C.gold });
-    if (runs.length) label(ctx, L.compact ? 'tap to replay' : 'tap a run to replay it', g.x + g.w, g.y + 10, { size: L.compact ? 8.5 : 9.5, align: 'right', color: INK[4] });
+    if (runs.length) label(ctx, L.compact ? `${verb.toLowerCase()} to replay` : `${verb.toLowerCase()} a run to replay it`, g.x + g.w, g.y + 10, { size: L.compact ? 8.5 : 9.5, align: 'right', color: INK[4] });
     const fs = L.compact ? 8.5 : 10;
     const rowH = L.compact ? 14 : 17;
     const gap = L.compact ? 6 : 12;

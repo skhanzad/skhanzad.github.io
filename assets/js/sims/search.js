@@ -66,8 +66,6 @@ const ALGS = [
 ];
 
 const COL = {
-  explored: [alpha(C.gold, 0.17), alpha(C.gold, 0.27), alpha(C.gold, 0.38)],
-  walked: [alpha(C.gold, 0.09), alpha(C.gold, 0.16), alpha(C.gold, 0.26)],
   frontier: alpha(C.amber, 0.88),
   active: alpha(C.amber, 0.14),
   trail: alpha(C.amber, 0.95),
@@ -169,11 +167,18 @@ function makeMap(seed, { W, H }, { plateau, trap, density }) {
     }
   }
 
-  // Scattered wall segments, redrawn until the goal is reachable.
+  // Scattered wall segments, kept out of and around the trap so its shape stays clear,
+  // and redrawn until the goal is reachable.
   const walls = new Uint8Array(N);
   const start = at(sx, sy);
   const goal = at(gx, gy);
-  const clear = (x, y) => Math.abs(x - sx) + Math.abs(y - sy) > 2 && Math.abs(x - gx) + Math.abs(y - gy) > 2;
+  const near = new Uint8Array(N);
+  if (box) {
+    for (let y = Math.max(0, box.y0 - 2); y <= Math.min(H - 1, box.y1 + 2); y++) {
+      for (let x = Math.max(0, box.x0 - 1); x <= Math.min(W - 1, box.x1 + 2); x++) near[at(x, y)] = 1;
+    }
+  }
+  const clear = (x, y) => !near[at(x, y)] && Math.abs(x - sx) + Math.abs(y - sy) > 2 && Math.abs(x - gx) + Math.abs(y - gy) > 2;
   for (let attempt = 0; attempt <= 12; attempt++) {
     walls.fill(0);
     for (const c of fixed) walls[c] = 1;
@@ -376,7 +381,7 @@ function hillClimb(map, emit) {
       self.time++;
       self.stuck++;
       seen[c]++;
-      if (self.stuck === STUCK) emit?.('stuck', { where: self.where });
+      if (self.stuck === STUCK || self.stuck === STUCK * 8 || self.stuck === STUCK * 32) emit?.('stuck', { where: self.where });
       const x = c % W;
       const y = (c - x) / W;
       const dx = gx - x;
@@ -522,6 +527,7 @@ function randomWalk(map, r, emit, keep = 0) {
       } else {
         self.fails++;
         self.L = Math.min(Lmax, self.L * 2);
+        if (self.fails < 4) emit?.('grow', { L: self.L, where: region[self.best] });
         if (self.fails >= 4) {
           self.fails = 0;
           self.restarts++;
@@ -559,7 +565,7 @@ const suiteSeed = (i) => ((i + 1) * 2654435761) % 2147483647;
 /* ------------------------------------------------------------------ */
 
 export function create({ stage, panel, reduced }) {
-  const params = { plateau: 0.45, trap: 0.45, density: 0.1, speed: reduced ? 0 : 0.18 };
+  const params = { plateau: 0.4, trap: 0.4, density: 0.07, speed: reduced ? 0 : 0.18 };
   let seed = 7;
   let dims = FULL;
   let map = null;
@@ -573,11 +579,22 @@ export function create({ stage, panel, reduced }) {
   let events = [];
   let hover = -1;
   let stroke = null;
-  let dirty = true; // static layers need repainting
+  let dirty = true; // the static map layers need repainting
   let frame = 0;
-  let narration = { text: 'Four planners, one map, one clock. Press Race to start them together.', short: 'Four planners, one map. Press Race.', tone: INK[2], prio: 0, at: 0, live: null };
+  let narration = {
+    text: 'Four planners, one map, one clock. Press Race to start them together.',
+    short: 'Four planners, one map. Press Race.',
+    tone: INK[2],
+    prio: 0,
+    at: 0,
+    live: null,
+  };
   const L = {};
-  const layers = { plain: document.createElement('canvas'), shaded: document.createElement('canvas'), walls: document.createElement('canvas') };
+  const layers = { plain: document.createElement('canvas'), shaded: document.createElement('canvas') };
+  // Explored cells accumulate on one offscreen layer per planner; each frame paints only
+  // the cells whose visit count changed.
+  const trace = ALGS.map(() => ({ canvas: document.createElement('canvas'), g: null, drawn: null }));
+  let traceDirty = true;
 
   /* ---------------------------------------------------------------- */
   /* Race driver                                                      */
@@ -597,7 +614,7 @@ export function create({ stage, panel, reduced }) {
     const r = rng(seed * 7919 + raceNo * 104729 + 13);
     const emit = (i) => (type, data) => events.push({ i, type, ...data });
     race = {
-      algs: [aStar(map, false), aStar(map, true), hillClimb(map, emit(2)), randomWalk(map, r, emit(3), 9)],
+      algs: [aStar(map, false), aStar(map, true), hillClimb(map, emit(2)), randomWalk(map, r, emit(3), WALKS * 2)],
       clock: 0,
       acc: 0,
       cap: LIMIT * openCells(map),
@@ -607,6 +624,7 @@ export function create({ stage, panel, reduced }) {
       order: [],
     };
     events = [];
+    traceDirty = true;
   }
 
   function startRace() {
@@ -615,12 +633,12 @@ export function create({ stage, panel, reduced }) {
     newRace();
     race.running = true;
     race.started = true;
-    narrate(
-      raceNo > 1
-        ? { text: `Race ${raceNo}: same map, fresh random walks. The other three planners are deterministic and repeat exactly.`, short: `Race ${raceNo}: fresh random walks, same map.`, prio: 5 }
-        : { text: 'Off they go: every frame grants each planner the same slice of simulated time.', short: 'Same map, same clock: go.', prio: 5 },
-      true,
-    );
+    const again = {
+      text: `Race ${raceNo}: same map, fresh random walks. The other three planners are deterministic and repeat exactly.`,
+      short: `Race ${raceNo}: fresh random walks, same map.`,
+    };
+    const first = { text: 'Off they go: every frame grants each planner the same slice of simulated time.', short: 'Same map, same clock: go.' };
+    narrate({ ...(raceNo > 1 ? again : first), prio: 5 }, true);
     refresh();
   }
 
@@ -676,10 +694,14 @@ export function create({ stage, panel, reduced }) {
   function verdict() {
     const [ua, ia, ehc, rw] = race.algs;
     const sr = race.algs
-      .map((a, i) => `${ALGS[i].name}: ${a.solved ? `solved at ${ticks(a)} ticks with ${fmt.int(a.work)} ${i === 3 ? 'steps and evaluations' : 'expansions'}` : a.reason === 'time limit' ? 'gave up at the time limit' : 'no path'}.`)
+      .map((a, i) => {
+        if (a.solved) return `${ALGS[i].name}: solved at ${ticks(a)} ticks with ${fmt.int(a.work)} ${i === 3 ? 'steps and evaluations' : 'expansions'}.`;
+        return `${ALGS[i].name}: ${a.reason === 'time limit' ? 'gave up at the time limit' : 'no path'}.`;
+      })
       .join(' ');
     if (ua.reason === 'no path') {
-      return { text: 'No path exists: the walls cut the goal off. Erase a few and race again.', short: 'No path: walls cut the goal off.', tone: C.ember, sr: `Race over. ${sr}` };
+      const text = 'No path exists: the walls cut the goal off. Erase a few and race again.';
+      return { text, short: 'No path: walls cut the goal off.', tone: C.ember, sr: `Race over. ${sr}` };
     }
     let text;
     let short;
@@ -707,11 +729,17 @@ export function create({ stage, panel, reduced }) {
   function describeMap() {
     const z = map.zone;
     const t = map.trap;
-    if (!z && !t) return { text: 'A smooth landscape: no plateau, no trap. Press Race and watch hill-climbing stride straight in.', short: 'Smooth landscape. Press Race.', prio: 5 };
+    if (!z && !t) {
+      return { text: 'A smooth landscape: no plateau, no trap. Press Race and watch hill-climbing stride straight in.', short: 'Smooth landscape. Press Race.', prio: 5 };
+    }
     const bits = [];
     if (z) bits.push('a plateau where h goes flat');
     if (t) bits.push(`a trap ${t.x1 - t.x0 + 1} cells deep, closed towards the goal`);
-    return { text: `New map: ${bits.join(', then ')}. Press Race to start all four on one clock.`, short: `New map: ${z ? 'plateau' : ''}${z && t ? ', then ' : ''}${t ? 'a trap' : ''}. Press Race.`, prio: 5 };
+    return {
+      text: `New map: ${bits.join(', then ')}. Press Race to start all four on one clock.`,
+      short: `New map: ${[z && 'plateau', t && 'a trap'].filter(Boolean).join(', then ')}. Press Race.`,
+      prio: 5,
+    };
   }
 
   // One narration line; a more important or newer line replaces it after HOLD ms.
@@ -734,10 +762,22 @@ export function create({ stage, panel, reduced }) {
         ],
       });
     } else if (e.type === 'escape' && e.i === 2) {
-      narrate({ text: `Hill-climbing broke out of ${THE[e.where]} after a ${fmt.int(e.size)}-node breadth-first search.`, short: `EHC escaped ${THE[e.where]}: ${fmt.int(e.size)} expansions.`, prio: 2, tone: C.cream });
+      narrate({
+        text: `Hill-climbing broke out of ${THE[e.where]} after a ${fmt.int(e.size)}-node breadth-first search.`,
+        short: `EHC escaped ${THE[e.where]}: ${fmt.int(e.size)} expansions.`,
+        prio: 2,
+        tone: C.cream,
+      });
     } else if (e.type === 'escape') {
       const after = e.restarts ? `after ${plural(e.restarts, 'restart')}` : 'without a restart';
       narrate({ text: `The random walk escaped ${THE[e.where]} ${after}.`, short: `RRW escaped ${THE[e.where]} ${after}.`, prio: 2, tone: C.gold });
+    } else if (e.type === 'grow') {
+      narrate({
+        text: `No walk ended on a better h${e.where ? ` inside ${THE[e.where]}` : ''}: the random walk doubles its walks to ${e.L} steps.`,
+        short: `RRW stuck: walks now ${e.L} steps.`,
+        prio: 0.5,
+        tone: C.amber,
+      });
     } else if (e.type === 'restart') {
       narrate({
         text: `Four rounds without a better endpoint: the random walk restarts from the start (restart ${e.n}) with ${e.L}-step walks.`,
@@ -748,11 +788,17 @@ export function create({ stage, panel, reduced }) {
     } else if (e.type === 'solved') {
       const len = a.shown.length - 1;
       const extra = e.i < 2 ? `an optimal path of ${len}` : `a path of ${len}`;
-      narrate({ text: `${A.name} reached the goal at ${ticks(a)} ticks: ${fmt.int(a.work)} ${e.i === 3 ? 'steps and evaluations' : 'expansions'}, ${extra}.`, short: `${A.short} solved at ${ticks(a)} ticks.`, prio: 3, tone: C.gold });
-    } else if (e.type === 'failed') {
       narrate({
-        text: a.reason === 'time limit' ? `${A.name} hit the time limit at ${fmt.int(race.cap)} ticks and gave up.` : `${A.name} ran out of states to search: the goal is walled off.`,
-        short: a.reason === 'time limit' ? `${A.short} gave up at the time limit.` : `${A.short}: goal walled off.`,
+        text: `${A.name} reached the goal at ${ticks(a)} ticks: ${fmt.int(a.work)} ${e.i === 3 ? 'steps and evaluations' : 'expansions'}, ${extra}.`,
+        short: `${A.short} solved at ${ticks(a)} ticks.`,
+        prio: 3,
+        tone: C.gold,
+      });
+    } else if (e.type === 'failed') {
+      const late = a.reason === 'time limit';
+      narrate({
+        text: late ? `${A.name} hit the time limit at ${fmt.int(race.cap)} ticks and gave up.` : `${A.name} ran out of states to search: the goal is walled off.`,
+        short: late ? `${A.short} gave up at the time limit.` : `${A.short}: goal walled off.`,
         prio: 3,
         tone: C.ember,
       });
@@ -768,7 +814,8 @@ export function create({ stage, panel, reduced }) {
     if (race?.running) newRace();
     batch = { results: [], cur: null, running: true, ticks: 0, at: performance.now() };
     tip.hide();
-    narrate({ text: `Running ${MAPS} seeded maps headless: all four planners on each, under the same time limit.`, short: `Running ${MAPS} seeded maps…`, prio: 5 }, true);
+    const text = `Running ${MAPS} seeded maps headless: all four planners on each, under the same time limit.`;
+    narrate({ text, short: `Running ${MAPS} seeded maps…`, prio: 5 }, true);
     refresh();
   }
 
@@ -907,9 +954,22 @@ export function create({ stage, panel, reduced }) {
     newMap();
   };
   const pctOrNone = (v) => (v === 0 ? 'none' : `${Math.round(v * 100)}%`);
-  slider(shape, { label: 'Plateau size', min: 0, max: 1, step: 0.05, value: params.plateau, format: pctOrNone, onInput: (v) => ((params.plateau = v), reshape()) });
-  slider(shape, { label: 'Trap depth', min: 0, max: 1, step: 0.05, value: params.trap, format: pctOrNone, onInput: (v) => ((params.trap = v), reshape()) });
-  slider(shape, { label: 'Obstacle density', min: 0, max: 0.25, step: 0.01, value: params.density, format: (v) => `${Math.round(v * 100)}%`, onInput: (v) => ((params.density = v), reshape()) });
+  const knob = (label, key, max, step, format) =>
+    slider(shape, {
+      label,
+      min: 0,
+      max,
+      step,
+      value: params[key],
+      format,
+      onInput: (v) => {
+        params[key] = v;
+        reshape();
+      },
+    });
+  knob('Plateau size', 'plateau', 1, 0.05, pctOrNone);
+  knob('Trap depth', 'trap', 1, 0.05, pctOrNone);
+  knob('Obstacle density', 'density', 0.25, 0.01, (v) => `${Math.round(v * 100)}%`);
   toggle(shape, { label: 'Erase walls when dragging', value: false, onChange: (v) => (erase = v) });
   const tools = actions(shape, [{ id: 'undo', label: 'Undo painting', onClick: () => ((mode = 'race'), newMap()) }]);
 
@@ -974,7 +1034,8 @@ export function create({ stage, panel, reduced }) {
         put('cut', fmt.pct(s.cut), 'ok');
       }
     }
-    buttons.race.textContent = race?.running ? 'Racing…' : race?.over ? 'Race again ▸' : 'Race ▸';
+    const run = race?.running ? 'Racing…' : 'Race ▸';
+    if (buttons.race.textContent !== run) buttons.race.textContent = run;
     buttons.race.disabled = !!race?.running;
     buttons.batch.disabled = !!batch?.running;
     tools.undo.disabled = painted === 0;
@@ -1018,6 +1079,8 @@ export function create({ stage, panel, reduced }) {
     },
   });
 
+  // Paint or erase one cell. Any change resets the race, since its searches no longer
+  // match the map.
   function paint(c) {
     if (c === map.start || c === map.goal) return;
     const v = erase ? 0 : 1;
@@ -1074,17 +1137,22 @@ export function create({ stage, panel, reduced }) {
   }
 
   function panels() {
-    if (!L.panels) return [];
+    if (!L.xs) return [];
     return L.compact ? [{ ...L.single, i: sel }] : L.panels;
   }
 
+  // The cell under a point, in whichever map panel it falls.
   function cellAt(x, y) {
+    const { xs, ys } = L;
     for (const P of panels()) {
-      if (x >= P.mx && x < P.mx + P.mw && y >= P.my && y < P.my + P.mh) {
-        const cx = clamp(Math.floor((x - P.mx) / L.cell), 0, map.W - 1);
-        const cy = clamp(Math.floor((y - P.my) / L.cell), 0, map.H - 1);
-        return cy * map.W + cx;
-      }
+      if (x < P.mx || x >= P.mx + P.mw || y < P.my || y >= P.my + P.mh) continue;
+      let i = clamp(Math.floor((x - P.mx) / L.cell), 0, map.W - 1);
+      let j = clamp(Math.floor((y - P.my) / L.cell), 0, map.H - 1);
+      if (x - P.mx < xs[i]) i--;
+      else if (x - P.mx >= xs[i + 1]) i++;
+      if (y - P.my < ys[j]) j--;
+      else if (y - P.my >= ys[j + 1]) j++;
+      return clamp(j, 0, map.H - 1) * map.W + clamp(i, 0, map.W - 1);
     }
     return -1;
   }
@@ -1108,54 +1176,58 @@ export function create({ stage, panel, reduced }) {
     shown.el.hidden = !L.compact;
     const { W, H } = dims;
     L.kicker = !L.compact && h >= 600;
-    L.narrY = L.compact ? (h < 300 ? 30 : 64) : L.kicker ? 88 : 68;
-    L.kickY = 56;
-    const top = L.compact ? L.narrY + 14 : L.narrY + 20;
+    L.kickY = 62;
+    L.narrY = L.compact ? (h < 300 ? 30 : 64) : L.kicker ? 94 : 70;
+    const top = L.narrY + (L.compact ? 14 : 20);
     const bottom = h - 34;
 
+    // Cell size, then pixel-snapped cell edges so tiles and walls stay crisp.
+    let cell;
     if (L.compact) {
-      // One map at a time, with a row (or column) of tabs that doubles as a scoreboard.
-      const foot = 22;
-      const stacked = Math.min((w - pad * 2) / W, (bottom - top - 44 - 10 - foot) / H);
-      const side = Math.min((w - pad * 2 - 132) / W, (bottom - top - foot) / H);
+      const stacked = Math.min((w - pad * 2) / W, (bottom - top - 52 - 22) / H);
+      const side = Math.min((w - pad * 2 - 132) / W, (bottom - top - 4 - 22) / H);
       L.side = side > stacked * 1.12;
-      L.cell = Math.max(2, L.side ? side : stacked);
-      const mw = Math.round(L.cell * W);
-      const mh = Math.round(L.cell * H);
+      cell = L.side ? side : stacked;
+    } else {
+      L.gapX = Math.max(20, w * 0.028);
+      L.colW = (w - pad * 2 - L.gapX) / 2;
+      cell = Math.min(L.colW / W, ((bottom - top - 16) / 2 - 18 - 24) / H);
+    }
+    L.cell = Math.max(2, cell);
+    L.xs = Array.from({ length: W + 1 }, (_, i) => Math.round(i * L.cell));
+    L.ys = Array.from({ length: H + 1 }, (_, i) => Math.round(i * L.cell));
+    const mw = L.xs[W];
+    const mh = L.ys[H];
+    L.mw = mw;
+    L.mh = mh;
+
+    if (L.compact) {
+      // One map at a time, with tabs that double as a scoreboard.
       if (L.side) {
-        L.single = { mx: Math.round(pad), my: Math.round(top + 4), mw, mh };
-        const tx = pad + mw + 16;
+        const tw = Math.min(170, w - pad * 2 - mw - 16);
+        const x0 = Math.round((w - (mw + 16 + tw)) / 2);
         const th = Math.min(46, (mh - 18) / 4);
-        L.tabs = ALGS.map((_, i) => ({ x: tx, y: top + 4 + i * (th + 6), w: w - pad - tx, h: th }));
+        L.single = { mx: x0, my: Math.round(top + 4), mw, mh };
+        L.tabs = ALGS.map((_, i) => ({ x: x0 + mw + 16, y: top + 4 + i * (th + 6), w: tw, h: th }));
       } else {
         const tw = (w - pad * 2 - 18) / 4;
         L.tabs = ALGS.map((_, i) => ({ x: pad + i * (tw + 6), y: top, w: tw, h: 40 }));
         L.single = { mx: Math.round((w - mw) / 2), my: Math.round(top + 52), mw, mh };
       }
-      L.panels = [L.single];
+      L.panels = null;
     } else {
       // Two by two: the A* pair on top, the local-search pair below.
-      const gapX = Math.max(20, w * 0.028);
-      const gapY = 16;
-      const head = 18;
-      const foot = 24;
-      const colW = (w - pad * 2 - gapX) / 2;
-      const rowH = (bottom - top - gapY) / 2;
-      L.cell = Math.max(2, Math.min(colW / W, (rowH - head - foot) / H));
-      const mw = Math.round(L.cell * W);
-      const mh = Math.round(L.cell * H);
-      const blockH = (head + mh + foot) * 2 + gapY;
+      const blockH = (18 + mh + 24) * 2 + 16;
       const y0 = top + Math.max(0, (bottom - top - blockH) / 2);
       L.panels = ALGS.map((_, i) => {
-        const col = i % 2;
-        const row = i >> 1;
-        const cx = pad + col * (colW + gapX) + colW / 2;
-        return { i, mx: Math.round(cx - mw / 2), my: Math.round(y0 + row * (head + mh + foot + gapY) + head), mw, mh };
+        const mid = pad + (i % 2) * (L.colW + L.gapX) + L.colW / 2;
+        return { i, mx: Math.round(mid - mw / 2), my: Math.round(y0 + (i >> 1) * (18 + mh + 24 + 16) + 18), mw, mh };
       });
       L.tabs = null;
     }
 
-    // The batch view: a scatter of the 40 duels, the two headline shares and a tally.
+    // The batch view: two headline shares with a tally, a scatter of the duels and, on
+    // larger stages, a strip of A*'s savings.
     if (L.compact) {
       const sy = L.narrY + 18;
       const colW = (w - pad * 2 - 14) / 2;
@@ -1170,24 +1242,24 @@ export function create({ stage, panel, reduced }) {
       L.plot = side > 90 ? { x: Math.round(pad + 38 + (w - pad * 2 - 44 - side) / 2), y: Math.round(py), w: side, h: side } : null;
       L.strip = null;
     } else {
-      const ptop = top + 22;
-      const side = Math.min((w - pad * 2) * 0.5, bottom - ptop - 34);
-      L.plot = { x: Math.round(pad + 40), y: Math.round(ptop), w: side, h: side };
+      const side = Math.min((w - pad * 2) * 0.5, bottom - top - 56);
+      const by = top + Math.max(0, (bottom - top - side - 56) / 2);
+      L.plot = { x: Math.round(pad + 40), y: Math.round(by + 22), w: side, h: side };
       const rx = L.plot.x + side + Math.max(40, w * 0.05);
       const rw = w - pad - rx;
       L.stats = [
-        { x: rx, y: top, w: rw },
-        { x: rx, y: top + Math.max(170, (bottom - top) * 0.5), w: rw },
+        { x: rx, y: by, w: rw },
+        { x: rx, y: by + 216, w: rw },
       ];
-      const sq = Math.min(12, (rw - 19 * 4) / 20);
-      L.tally = { x: rx, y: top + 104, sq, gap: 4, cols: 20 };
-      L.strip = { x: rx, y: L.stats[1].y + 112, w: rw };
+      L.tally = { x: rx, y: by + 104, sq: Math.min(12, (rw - 19 * 4) / 20), gap: 4, cols: 20 };
+      L.strip = { x: rx, y: L.stats[1].y + 140, w: rw };
     }
     dirty = true;
+    traceDirty = true;
   }
 
   /* ---------------------------------------------------------------- */
-  /* Drawing: static map layers                                       */
+  /* Drawing: map layers                                              */
   /* ---------------------------------------------------------------- */
 
   function sizeLayer(c, w, h) {
@@ -1199,59 +1271,112 @@ export function create({ stage, panel, reduced }) {
     return g;
   }
 
-  // Tiles shaded by h (or flat for blind A*), with the walls laid over them.
+  // Tiles shaded by h (flat for blind A*), walls drawn like a floor plan, and the
+  // plateau's dashed outline.
   function buildLayers() {
     dirty = false;
     const { W, H, N, walls, h, hMax, zone } = map;
-    const s = L.cell;
-    const w = W * s;
-    const hh = H * s;
-    const gap = s >= 6 ? 1 : 0.6;
-    const wl = sizeLayer(layers.walls, w, hh);
-    wl.fillStyle = C.cream;
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; ) {
-        if (!walls[y * W + x]) {
-          x++;
-          continue;
-        }
-        let e = x;
-        while (e < W && walls[y * W + e]) e++;
-        wl.fillRect(x * s, y * s, (e - x) * s, s + 0.6);
-        x = e;
-      }
-    }
+    const { xs, ys } = L;
+    const gap = L.cell >= 4.5 ? 1 : 0;
+    const wall = (x, y) => x >= 0 && y >= 0 && x < W && y < H && walls[y * W + x] === 1;
     for (const shaded of [false, true]) {
-      const g = sizeLayer(shaded ? layers.shaded : layers.plain, w, hh);
+      const g = sizeLayer(shaded ? layers.shaded : layers.plain, L.mw, L.mh);
       const levels = Array.from({ length: 16 }, () => new Path2D());
       for (let k = 0; k < N; k++) {
         if (walls[k]) continue;
-        const t = shaded ? Math.pow(1 - h[k] / hMax, 1.6) : 0.12;
-        levels[Math.round(t * 15)].rect((k % W) * s + gap / 2, Math.floor(k / W) * s + gap / 2, s - gap, s - gap);
+        const x = k % W;
+        const y = (k - x) / W;
+        const t = shaded ? Math.pow(1 - h[k] / hMax, 1.6) : 0.15;
+        levels[Math.round(t * 15)].rect(xs[x], ys[y], xs[x + 1] - xs[x] - gap, ys[y + 1] - ys[y] - gap);
       }
       levels.forEach((p, i) => {
-        g.fillStyle = alpha(C.cream, 0.022 + (0.085 * i) / 15);
+        g.fillStyle = alpha(C.cream, 0.018 + (0.072 * i) / 15);
         g.fill(p);
       });
-      g.globalAlpha = 0.42;
-      g.drawImage(layers.walls, 0, 0, w, hh);
-      g.globalAlpha = 1;
+      const outline = new Path2D();
+      g.fillStyle = alpha(C.cream, 0.12);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          if (!walls[y * W + x]) continue;
+          const x0 = xs[x];
+          const x1 = xs[x + 1];
+          const y0 = ys[y];
+          const y1 = ys[y + 1];
+          g.fillRect(x0, y0, x1 - x0, y1 - y0);
+          if (!wall(x, y - 1)) {
+            outline.moveTo(x0, y0 + 0.5);
+            outline.lineTo(x1, y0 + 0.5);
+          }
+          if (!wall(x, y + 1)) {
+            outline.moveTo(x0, y1 - 0.5);
+            outline.lineTo(x1, y1 - 0.5);
+          }
+          if (!wall(x - 1, y)) {
+            outline.moveTo(x0 + 0.5, y0);
+            outline.lineTo(x0 + 0.5, y1);
+          }
+          if (!wall(x + 1, y)) {
+            outline.moveTo(x1 - 0.5, y0);
+            outline.lineTo(x1 - 0.5, y1);
+          }
+        }
+      }
+      g.strokeStyle = alpha(C.cream, 0.48);
+      g.lineWidth = 1;
+      g.lineCap = 'square';
+      g.stroke(outline);
       if (shaded && zone) {
-        g.strokeStyle = alpha(C.cream, 0.42);
-        g.lineWidth = 1;
+        g.strokeStyle = alpha(C.cream, 0.4);
         g.setLineDash([3, 3]);
-        g.strokeRect(zone.x0 * s + 0.5, zone.y0 * s + 0.5, (zone.x1 - zone.x0 + 1) * s - 1, (zone.y1 - zone.y0 + 1) * s - 1);
+        g.strokeRect(xs[zone.x0] + 0.5, ys[zone.y0] + 0.5, xs[zone.x1 + 1] - xs[zone.x0] - 1, ys[zone.y1 + 1] - ys[zone.y0] - 1);
         g.setLineDash([]);
       }
     }
+  }
+
+  function resetTrace() {
+    traceDirty = false;
+    for (const t of trace) {
+      t.g = sizeLayer(t.canvas, L.mw, L.mh);
+      t.drawn = new Uint8Array(map.N);
+    }
+  }
+
+  // Paint the visits a planner made since the last frame. Each visit adds a little gold,
+  // up to a cap, so repeated work glows brighter.
+  function syncTrace(i, a) {
+    const t = trace[i];
+    const { W, N } = map;
+    const { xs, ys } = L;
+    const per = i === 3 ? 0.055 : 0.2;
+    const cap = i === 3 ? 5 : 3;
+    const g = t.g;
+    g.fillStyle = C.gold;
+    for (let k = 0; k < N; k++) {
+      const n = Math.min(a.seen[k], cap);
+      const d = n - t.drawn[k];
+      if (d <= 0) continue;
+      const x = k % W;
+      const y = (k - x) / W;
+      g.globalAlpha = 1 - Math.pow(1 - per, d);
+      g.fillRect(xs[x], ys[y], xs[x + 1] - xs[x], ys[y + 1] - ys[y]);
+      t.drawn[k] = n;
+    }
+    g.globalAlpha = 1;
   }
 
   /* ---------------------------------------------------------------- */
   /* Drawing: one planner's panel                                     */
   /* ---------------------------------------------------------------- */
 
-  const cx = (P, c) => P.mx + ((c % map.W) + 0.5) * L.cell;
-  const cy = (P, c) => P.my + (Math.floor(c / map.W) + 0.5) * L.cell;
+  const cx = (P, c) => {
+    const x = c % map.W;
+    return P.mx + (L.xs[x] + L.xs[x + 1]) / 2;
+  };
+  const cy = (P, c) => {
+    const y = Math.floor(c / map.W);
+    return P.my + (L.ys[y] + L.ys[y + 1]) / 2;
+  };
 
   function tracePath(P, cells, upto = cells.length) {
     ctx.beginPath();
@@ -1263,29 +1388,13 @@ export function create({ stage, panel, reduced }) {
   }
 
   function fillCells(P, each, color, inset) {
-    const s = L.cell;
-    const p = new Path2D();
-    each((c) => p.rect(P.mx + (c % map.W) * s + inset, P.my + Math.floor(c / map.W) * s + inset, s - inset * 2, s - inset * 2));
+    const { W } = map;
+    const { xs, ys } = L;
     ctx.fillStyle = color;
-    ctx.fill(p);
-  }
-
-  function drawSeen(P, seen, walked) {
-    const { W, N } = map;
-    const s = L.cell;
-    const inset = s >= 6 ? 0.5 : 0.3;
-    const t1 = walked ? 3 : 2;
-    const t2 = walked ? 10 : 3;
-    const buckets = [new Path2D(), new Path2D(), new Path2D()];
-    for (let k = 0; k < N; k++) {
-      const n = seen[k];
-      if (!n) continue;
-      buckets[n < t1 ? 0 : n < t2 ? 1 : 2].rect(P.mx + (k % W) * s + inset, P.my + Math.floor(k / W) * s + inset, s - inset * 2, s - inset * 2);
-    }
-    const cols = walked ? COL.walked : COL.explored;
-    buckets.forEach((p, i) => {
-      ctx.fillStyle = cols[i];
-      ctx.fill(p);
+    each((c) => {
+      const x = c % W;
+      const y = (c - x) / W;
+      ctx.fillRect(P.mx + xs[x] + inset, P.my + ys[y] + inset, xs[x + 1] - xs[x] - inset * 2, ys[y + 1] - ys[y] - inset * 2);
     });
   }
 
@@ -1296,27 +1405,26 @@ export function create({ stage, panel, reduced }) {
     const lw = layers.plain.width / view.dpr;
     const lh = layers.plain.height / view.dpr;
     ctx.drawImage(i === 0 ? layers.plain : layers.shaded, P.mx, P.my, lw, lh);
-
     if (race.started) {
-      drawSeen(P, a.seen, i === 3);
-      if (i === 2 && !a.done) fillCells(P, a.eachSearched, COL.active, 0);
-      if ((i < 3) && !a.done) fillCells(P, a.eachOpen, COL.frontier, s >= 6 ? 1 : 0.5);
+      syncTrace(i, a);
+      ctx.drawImage(trace[i].canvas, P.mx, P.my, lw, lh);
+      if (!a.done && i === 2) fillCells(P, a.eachSearched, COL.active, 0);
+      if (!a.done && i < 3) fillCells(P, a.eachOpen, COL.frontier, s >= 6 ? 1 : 0.5);
     }
     drawLabels(P, i);
 
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
     if (race.started && i === 3) drawWalks(P, a);
-    if (race.started && !a.solved && (i === 2 || i === 3) && a.path.length > 1) {
-      tracePath(P, i === 3 ? committed(a) : a.path);
+    if (race.started && !a.solved && i >= 2 && a.path.length > 1) {
+      tracePath(P, committed(a));
       ctx.strokeStyle = COL.committed;
       ctx.lineWidth = 1.2;
       ctx.stroke();
     }
     if (a.solved && a.shown) {
       const k = reduced ? 1 : easeOut((performance.now() - a.at) / 700);
-      const upto = Math.max(2, Math.ceil(a.shown.length * k));
-      tracePath(P, a.shown, upto);
+      tracePath(P, a.shown, Math.max(2, Math.ceil(a.shown.length * k)));
       ctx.strokeStyle = COL.halo;
       ctx.lineWidth = 5;
       ctx.stroke();
@@ -1327,45 +1435,50 @@ export function create({ stage, panel, reduced }) {
 
     // Start, goal, and where a local search currently stands.
     const r0 = clamp(s * 0.55, 3, 6.5);
-    glow(ctx, cx(P, map.goal), cy(P, map.goal), r0 * 3.4, C.gold, 0.5);
-    dot(ctx, cx(P, map.goal), cy(P, map.goal), r0 * 0.85, C.gold);
+    const gx = cx(P, map.goal);
+    const gy = cy(P, map.goal);
+    glow(ctx, gx, gy, r0 * 3.4, C.gold, 0.5);
+    dot(ctx, gx, gy, r0 * 0.85, C.gold);
     dot(ctx, cx(P, map.start), cy(P, map.start), r0, C.midnight, C.cream, 1.4);
-    if (race.started && (i === 2 || i === 3) && !a.solved) {
+    if (race.started && i >= 2 && !a.solved) {
       const at = i === 2 ? a.cur : a.best;
       const x = cx(P, at);
       const y = cy(P, at);
+      const r = clamp(s * 0.36, 2, 4.2);
       if (a.done) {
-        const k = r0 * 0.8;
-        line(ctx, x - k, y - k, x + k, y + k, C.ember, 1.6);
-        line(ctx, x + k, y - k, x - k, y + k, C.ember, 1.6);
+        line(ctx, x - r0 * 0.8, y - r0 * 0.8, x + r0 * 0.8, y + r0 * 0.8, C.ember, 1.6);
+        line(ctx, x + r0 * 0.8, y - r0 * 0.8, x - r0 * 0.8, y + r0 * 0.8, C.ember, 1.6);
       } else {
         if (i === 2 && a.stuck >= STUCK) glow(ctx, x, y, s * 4, C.amber, reduced ? 0.3 : 0.24 + 0.08 * Math.sin(time * 5));
-        dot(ctx, x, y, clamp(s * 0.36, 2, 4.2), C.amber);
-        dot(ctx, x, y, clamp(s * 0.36, 2, 4.2) + 2.5, null, alpha(C.amber, 0.55), 1);
+        dot(ctx, x, y, r, C.amber);
+        dot(ctx, x, y, r + 2.5, null, alpha(C.amber, 0.55), 1);
       }
     }
     if (hover >= 0 && !L.coarse) {
+      const x = hover % map.W;
+      const y = (hover - x) / map.W;
       ctx.strokeStyle = alpha(C.cream, 0.75);
       ctx.lineWidth = 1;
-      ctx.strokeRect(P.mx + (hover % map.W) * s + 0.5, P.my + Math.floor(hover / map.W) * s + 0.5, s - 1, s - 1);
+      ctx.strokeRect(P.mx + L.xs[x] + 0.5, P.my + L.ys[y] + 0.5, L.xs[x + 1] - L.xs[x] - 1, L.ys[y + 1] - L.ys[y] - 1);
     }
     drawCaptions(P, a, i);
   }
 
-  // The random walk's recent trails: the walk under way, this round's finished walks, and
+  // The random walk's recent trails: the walk under way, this round's finished walks and
   // earlier rounds fading. Endpoints show the verdict: gold accepted, ember rejected.
   function drawWalks(P, a) {
-    const s = L.cell;
-    const width = s >= 6 ? 1.1 : 0.9;
+    const fade = !a.done ? 1 : reduced ? 0 : clamp(1 - (performance.now() - a.at) / 900);
+    if (fade <= 0) return;
+    const width = L.cell >= 6 ? 1.1 : 0.9;
     for (const t of a.trails) {
       const age = a.rounds - t.round;
-      const k = age <= 0 ? 0.55 : age === 1 ? 0.3 : 0.14;
+      const k = (age <= 0 ? 0.5 : 0.2) * fade;
       tracePath(P, t.cells);
       ctx.strokeStyle = alpha(C.amber, k);
       ctx.lineWidth = width;
       ctx.stroke();
       const e = t.cells[t.cells.length - 1];
-      dot(ctx, cx(P, e), cy(P, e), clamp(s * 0.22, 1.3, 2.4), alpha(t.ok ? C.gold : C.ember, Math.min(1, k * 1.6)));
+      dot(ctx, cx(P, e), cy(P, e), clamp(L.cell * 0.22, 1.3, 2.4), alpha(t.ok ? C.gold : C.ember, Math.min(1, k * 1.6)));
     }
     if (a.done) return;
     for (const w of a.ends) {
@@ -1382,6 +1495,7 @@ export function create({ stage, panel, reduced }) {
     }
   }
 
+  // The plan so far without its loops, cached until it grows.
   function committed(a) {
     if (a.cutFor !== a.path || a.cutLen !== a.path.length) {
       a.cut = loopErase(a.path, map.N);
@@ -1391,54 +1505,67 @@ export function create({ stage, panel, reduced }) {
     return a.cut;
   }
 
+  // Small map labels on a dark backing, so walls and explored cells never swallow them.
+  function tag(text, x, y, size) {
+    const w = textWidth(ctx, text.toUpperCase(), { size }) + text.length + 8;
+    roundRect(ctx, x - 4, y - size - 1, w, size + 6, 3);
+    ctx.fillStyle = alpha(C.midnight, 0.78);
+    ctx.fill();
+    label(ctx, text, x, y, { size, upper: true, track: 1, color: INK[2] });
+  }
+
   function drawLabels(P, i) {
-    const s = L.cell;
+    const { xs, ys } = L;
     const z = map.zone;
     const t = map.trap;
-    const size = s >= 7 ? 9.5 : 8.5;
+    const size = L.cell >= 7 ? 9 : 8;
     if (z && i > 0) {
-      const zw = (z.x1 - z.x0 + 1) * s;
-      const text = zw >= 112 ? `plateau · h = ${z.h}` : zw >= 52 ? 'plateau' : '';
-      if (text) label(ctx, text, P.mx + z.x0 * s + 4, P.my + z.y0 * s + size + 3, { size, upper: true, track: 1, color: INK[3] });
+      const zw = xs[z.x1 + 1] - xs[z.x0];
+      const text = zw >= 118 ? `plateau · h = ${z.h}` : zw >= 56 ? 'plateau' : '';
+      if (text) tag(text, P.mx + xs[z.x0] + 6, P.my + ys[z.y0] + size + 6, size);
     }
-    if (t && (t.x1 - t.x0 + 1) * s >= 30) {
-      label(ctx, 'trap', P.mx + t.x0 * s + 3, P.my + t.y0 * s + size + 3, { size, upper: true, track: 1, color: INK[3] });
+    if (t && xs[t.x1 + 1] - xs[t.x0] >= 34) tag('trap', P.mx + xs[t.x0] + 6, P.my + ys[t.y0] + size + 5, size);
+  }
+
+  function stateText(a, i) {
+    const A = ALGS[i];
+    let t;
+    if (!race.started) t = 'waiting for the start';
+    else if (a.solved) {
+      const extra = i < 2 ? ' · optimal' : i === 3 ? ` · ${plural(a.restarts, 'restart')}` : '';
+      t = `${L.compact ? `${ticks(a)} ticks · ` : ''}path ${a.shown.length - 1}${extra}`;
     }
+    else if (a.done) t = a.reason === 'time limit' ? 'time limit reached' : a.reason === 'no path' ? 'no path exists' : 'nothing better is reachable';
+    else if (i < 2) t = `open ${fmt.int(countOpen(a))} · closed ${fmt.int(a.work)}`;
+    else if (i === 2) t = a.stuck >= STUCK ? `bfs: ${fmt.int(a.stuck)} exp. without a better h` : `${plural(a.improved, 'improvement')} of h`;
+    else t = `walks of ${a.L} steps · ${plural(a.restarts, 'restart')}`;
+    return L.compact ? `${A.short} · ${t}` : t;
   }
 
   function drawCaptions(P, a, i) {
     const A = ALGS[i];
     const started = race.started;
     const tone = !started ? INK[3] : !a.done ? C.amber : a.solved ? C.gold : C.ember;
-    const count = !started ? 'ready' : a.done && !a.solved ? (a.reason === 'time limit' ? 'gave up' : 'no path') : `${fmt.int(a.work)} ${A.unit}`;
-    const hy = P.my - 7;
     if (!L.compact) {
-      const cw = textWidth(ctx, count, { size: 11 });
-      const name = textWidth(ctx, A.name, { size: 10.5 }) + A.name.length * 1.3 + cw + 16 < P.mw ? A.name : A.short;
-      label(ctx, name, P.mx, hy, { size: 10.5, upper: true, track: 1.3, color: INK[2] });
-      label(ctx, count, P.mx + P.mw, hy, { size: 11, align: 'right', color: tone });
+      const count = !started ? 'ready' : a.done && !a.solved ? (a.reason === 'time limit' ? 'gave up' : 'no path') : `${fmt.int(a.work)} ${A.unit}`;
+      const room = P.mw - textWidth(ctx, count, { size: 11 }) - 16;
+      const name = textWidth(ctx, A.name, { size: 10.5 }) + A.name.length * 1.3 < room ? A.name : A.short;
+      label(ctx, name, P.mx, P.my - 7, { size: 10.5, upper: true, track: 1.3, color: INK[2] });
+      label(ctx, count, P.mx + P.mw, P.my - 7, { size: 11, align: 'right', color: tone });
     }
 
     // The clock bar: how much of the time limit this planner has used.
     const by = P.my + P.mh + 5;
     line(ctx, P.mx, by, P.mx + P.mw, by, INK.faint, 2);
-    if (started) {
-      const used = clamp((a.finish ?? race.clock) / race.cap);
-      if (used > 0) line(ctx, P.mx, by, P.mx + P.mw * used, by, tone, 2);
-    }
+    const used = started ? clamp((a.finish ?? race.clock) / race.cap) : 0;
+    if (used > 0) line(ctx, P.mx, by, P.mx + P.mw * used, by, tone, 2);
 
     // What the planner is doing, and where it finished.
     const fy = by + 14;
-    let text = '';
-    if (!started) text = L.compact ? A.name : 'waiting for the start';
-    else if (a.solved) text = `${L.compact ? `${A.short} · ` : ''}path ${a.shown.length - 1}${i < 2 ? ' · optimal' : ''}${i === 3 ? ` · ${plural(a.restarts, 'restart')}` : ''}`;
-    else if (a.done) text = a.reason === 'time limit' ? 'time limit reached' : 'nothing better is reachable';
-    else if (i < 2) text = `open ${fmt.int(countOpen(a))} · closed ${fmt.int(a.work)}`;
-    else if (i === 2) text = a.stuck >= STUCK ? `bfs: ${fmt.int(a.stuck)} exp. without a better h` : `${plural(a.improved, 'improvement')} of h`;
-    else text = `walks of ${a.L} steps · ${plural(a.restarts, 'restart')}`;
-    const rank = a.rank ? `${ORD[a.rank - 1]} · ${ticks(a)} ticks` : a.done && started ? `${ticks(a)} ticks` : '';
+    const rank = L.compact ? '' : a.rank ? `${ORD[a.rank - 1]} · ${ticks(a)} ticks` : a.done && started ? `${ticks(a)} ticks` : '';
     const rw = rank ? textWidth(ctx, rank, { size: 10 }) + 12 : 0;
-    labelFit(ctx, text, P.mx, fy, P.mw - rw, { size: 10, minSize: 8.5, color: i === 2 && started && !a.done && a.stuck >= STUCK ? C.amber : INK[3] });
+    const busy = i === 2 && started && !a.done && a.stuck >= STUCK;
+    labelFit(ctx, stateText(a, i), P.mx, fy, P.mw - rw, { size: 10, minSize: 8.5, color: busy ? C.amber : INK[3] });
     if (rank) label(ctx, rank, P.mx + P.mw, fy, { size: 10, align: 'right', color: a.rank === 1 ? C.gold : a.solved ? INK[2] : C.ember });
   }
 
@@ -1460,24 +1587,30 @@ export function create({ stage, panel, reduced }) {
       ctx.stroke();
       const tone = !race.started ? INK[3] : !a.done ? C.amber : a.solved ? C.gold : C.ember;
       const big = t.h >= 38;
-      labelFit(ctx, ALGS[i].tab, t.x + 9, t.y + (big ? 16 : t.h / 2 - 2), t.w - 18, { size: 9.5, minSize: 8, upper: true, track: 0.8, color: on ? C.cream : INK[2] });
-      const count = !race.started ? '—' : a.done && !a.solved ? 'gave up' : fmt.int(a.work);
-      label(ctx, count, t.x + 9, t.y + (big ? 31 : t.h / 2 + 10), { size: 11.5, color: tone });
-      if (a.rank) label(ctx, ORD[a.rank - 1], t.x + t.w - 8, t.y + (big ? 31 : t.h / 2 + 10), { size: 9.5, align: 'right', color: a.rank === 1 ? C.gold : INK[3] });
+      const ny = t.y + (big ? 16 : t.h / 2 - 2);
+      const vy = t.y + (big ? 31 : t.h / 2 + 10);
+      labelFit(ctx, ALGS[i].tab, t.x + 9, ny, t.w - 18, { size: 9.5, minSize: 8, upper: true, track: 0.8, color: on ? C.cream : INK[2] });
+      label(ctx, !race.started ? '—' : a.done && !a.solved ? 'gave up' : fmt.int(a.work), t.x + 9, vy, { size: 11.5, color: tone });
+      if (a.rank) label(ctx, ORD[a.rank - 1], t.x + t.w - 8, vy, { size: 9.5, align: 'right', color: a.rank === 1 ? C.gold : INK[3] });
     });
   }
 
   function drawNarration() {
     let { text, short } = narration;
     if (narration.live) [text, short] = narration.live();
-    const w = view.w - L.pad * 2;
-    labelFit(ctx, L.compact ? short : text, L.pad, L.narrY, w, { size: L.compact ? 16 : 19, minSize: L.compact ? 11 : 12, font: 'serif', italic: true, color: narration.tone });
+    const o = { size: L.compact ? 16 : 19, minSize: L.compact ? 11 : 12, font: 'serif', italic: true, color: narration.tone };
+    labelFit(ctx, L.compact ? short : text, L.pad, L.narrY, view.w - L.pad * 2, o);
+  }
+
+  function raceEnd() {
+    return race.over ? Math.max(...race.algs.map((a) => a.finish ?? 0)) : race.clock;
   }
 
   function drawRace(time) {
     if (L.kicker) {
-      const end = race.over ? Math.max(...race.algs.map((a) => a.finish ?? 0)) : race.clock;
-      const head = !race.started ? 'One map · one clock · four planners' : race.over ? `Race ${raceNo} · finished at ${fmt.int(end)} ticks` : `Race ${raceNo} · clock ${fmt.int(race.clock)} ticks`;
+      let head = `Race ${raceNo} · clock ${fmt.int(race.clock)} ticks`;
+      if (!race.started) head = 'One map · one clock · four planners';
+      else if (race.over) head = `Race ${raceNo} · finished at ${fmt.int(raceEnd())} ticks`;
       label(ctx, head, L.pad, L.kickY, { size: 11, upper: true, track: 1.6, color: C.gold });
       label(ctx, `time limit ${fmt.int(race.cap)} ticks`, view.w - L.pad, L.kickY, { size: 11, align: 'right', color: INK[3] });
     }
@@ -1500,15 +1633,24 @@ export function create({ stage, panel, reduced }) {
     drawNarration();
     const tone = running ? C.amber : C.gold;
     const big = L.compact ? 34 : 54;
+    const caption = { size: L.compact ? 9.5 : 10.5, minSize: 8, color: INK[3] };
     const blocks = [
-      { kick: L.compact ? 'RRW vs EHC' : 'Random walk vs hill-climbing', value: s.done ? fmt.pct(s.rate) : '—', cap: L.compact ? ['maps where RRW was', 'faster or alone'] : ['of maps where the random walk was faster,', 'or solved what hill-climbing could not'] },
-      { kick: L.compact ? 'A* + h vs h = 0' : 'A* + heuristic vs uninformed A*', value: s.done ? fmt.pct(s.cut) : '—', cap: L.compact ? ['fewer expansions,', 'on average'] : ['fewer node expansions,', 'averaged over the maps'] },
+      {
+        kick: L.compact ? 'RRW vs EHC' : 'Random walk vs hill-climbing',
+        value: s.done ? fmt.pct(s.rate) : '—',
+        lines: L.compact ? ['of maps: RRW faster', 'or alone to solve'] : ['of maps where the random walk finished first,', 'or solved what hill-climbing could not'],
+      },
+      {
+        kick: L.compact ? 'A* + h vs h = 0' : 'A* + heuristic vs uninformed A*',
+        value: s.done ? fmt.pct(s.cut) : '—',
+        lines: L.compact ? ['fewer expansions,', 'on average'] : ['fewer node expansions,', 'averaged over the maps'],
+      },
     ];
     blocks.forEach((b, k) => {
       const r = L.stats[k];
       labelFit(ctx, b.kick, r.x, r.y + 10, r.w, { size: L.compact ? 9.5 : 10.5, minSize: 8, upper: true, track: 1.2, color: C.gold });
       label(ctx, b.value, r.x, r.y + 12 + big * 0.92, { size: big, font: 'serif', color: tone });
-      b.cap.forEach((c, j) => labelFit(ctx, c, r.x, r.y + 12 + big + 14 + j * 13, r.w, { size: L.compact ? 9.5 : 10.5, minSize: 8, color: INK[3] }));
+      b.lines.forEach((c, j) => labelFit(ctx, c, r.x, r.y + 26 + big + j * 13, r.w, caption));
     });
 
     // Tally: one square per map, filled as each finishes.
@@ -1517,17 +1659,17 @@ export function create({ stage, panel, reduced }) {
       const x = T.x + (k % T.cols) * (T.sq + T.gap);
       const y = T.y + Math.floor(k / T.cols) * (T.sq + T.gap);
       const r = batch?.results[k];
-      if (!r) {
+      if (r) {
+        ctx.fillStyle = r.win ? C.gold : r.wS ? alpha(C.cream, 0.3) : C.ember;
+        ctx.fillRect(x, y, T.sq, T.sq);
+      } else {
         ctx.strokeStyle = INK.line;
         ctx.lineWidth = 1;
         ctx.strokeRect(x + 0.5, y + 0.5, T.sq - 1, T.sq - 1);
-        continue;
       }
-      ctx.fillStyle = r.win ? C.gold : r.wS ? alpha(C.cream, 0.3) : C.ember;
-      ctx.fillRect(x, y, T.sq, T.sq);
     }
     if (!L.compact) {
-      const ly = T.y + T.sq * 2 + T.gap + 18;
+      const ly = T.y + T.sq * 2 + T.gap + 20;
       let lx = T.x;
       for (const [c, t] of [
         [C.gold, 'RRW won'],
@@ -1535,54 +1677,62 @@ export function create({ stage, panel, reduced }) {
         [C.ember, 'RRW gave up'],
       ]) {
         ctx.fillStyle = c;
-        ctx.fillRect(lx, ly - 7, 8, 8);
+        ctx.fillRect(lx, ly - 8, 8, 8);
         label(ctx, t, lx + 13, ly, { size: 10, color: INK[3] });
         lx += 13 + textWidth(ctx, t, { size: 10 }) + 16;
       }
     }
-
-    if (L.plot) drawScatter(L.plot, time);
+    if (L.plot) drawScatter(L.plot);
     if (L.strip) drawStrip(L.strip);
   }
 
   // Each map is one dot: hill-climbing's time across, the random walk's time up. Below the
   // diagonal the random walk finished first.
-  function drawScatter(R, time) {
-    const lo = 10;
-    const hi = Math.max(1000, ...(batch?.results.map((r) => r.cap) ?? [])) * 1.15;
-    const X = (v) => R.x + ((Math.log(Math.max(lo, v)) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * R.w;
-    const Y = (v) => R.y + R.h - ((Math.log(Math.max(lo, v)) - Math.log(lo)) / (Math.log(hi) - Math.log(lo))) * R.h;
+  function drawScatter(R) {
+    // The axes span from a round value below the fastest finish to just past the limit.
+    const results = batch?.results ?? [];
+    const fastest = Math.min(Infinity, ...results.map((r) => Math.min(r.eT, r.wT)));
+    const lo = fastest < 45 ? 10 : fastest < 150 ? 30 : 100;
+    const cap = Math.max(1000, ...results.map((r) => r.cap));
+    const hi = cap * 1.15;
+    const k = (v) => (Math.log(Math.max(lo, v)) - Math.log(lo)) / (Math.log(hi) - Math.log(lo));
+    const X = (v) => R.x + k(v) * R.w;
+    const Y = (v) => R.y + R.h - k(v) * R.h;
     const size = L.compact ? 9 : 9.5;
     for (const v of [10, 30, 100, 300, 1000, 3000, 10000]) {
+      if (v < lo) continue;
       if (v > hi) break;
-      const tx = X(v);
-      const ty = Y(v);
-      line(ctx, tx, R.y, tx, R.y + R.h, INK.faint);
-      line(ctx, R.x, ty, R.x + R.w, ty, INK.faint);
       const t = v >= 1000 ? `${v / 1000}k` : String(v);
-      label(ctx, t, tx, R.y + R.h + 13, { size, align: 'center', color: INK[3] });
-      label(ctx, t, R.x - 6, ty, { size, align: 'right', baseline: 'middle', color: INK[3] });
+      line(ctx, X(v), R.y, X(v), R.y + R.h, INK.faint);
+      line(ctx, R.x, Y(v), R.x + R.w, Y(v), INK.faint);
+      label(ctx, t, X(v), R.y + R.h + 13, { size, align: 'center', color: INK[3] });
+      label(ctx, t, R.x - 6, Y(v), { size, align: 'right', baseline: 'middle', color: INK[3] });
     }
     ctx.strokeStyle = INK.line;
     ctx.lineWidth = 1;
     ctx.strokeRect(R.x + 0.5, R.y + 0.5, R.w - 1, R.h - 1);
     line(ctx, X(lo), Y(lo), X(hi), Y(hi), INK[4], 1, [4, 4]);
+    if (results.length) {
+      // The time limit: a planner that gave up sits on this line.
+      line(ctx, X(cap), R.y, X(cap), R.y + R.h, alpha(C.ember, 0.35), 1, [2, 3]);
+      line(ctx, R.x, Y(cap), R.x + R.w, Y(cap), alpha(C.ember, 0.35), 1, [2, 3]);
+      label(ctx, 'time limit', X(cap) - 5, Y(cap) + 13, { size, align: 'right', color: alpha(C.ember, 0.75) });
+    }
     label(ctx, 'RRW faster', R.x + R.w - 6, R.y + R.h - 8, { size, align: 'right', upper: true, track: 1, color: C.gold });
-    label(ctx, 'EHC faster', R.x + 6, R.y + 14, { size, upper: true, track: 1, color: INK[3] });
+    label(ctx, 'EHC faster', R.x + 8, Y(cap) + 18, { size, upper: true, track: 1, color: INK[3] });
     label(ctx, L.compact ? 'EHC ticks →' : 'hill-climbing · ticks to finish →', R.x + R.w / 2, R.y + R.h + 28, { size, align: 'center', upper: true, track: 1, color: INK[3] });
     label(ctx, L.compact ? 'RRW ticks ↑' : 'random walk · ticks ↑', R.x - 32, R.y - 10, { size, upper: true, track: 1, color: INK[3] });
-    if (!batch) return;
     const now = performance.now();
-    for (const r of batch.results) {
-      const k = reduced ? 1 : easeOut((now - r.at) / 350);
+    for (const r of results) {
+      const e = reduced ? 1 : easeOut((now - r.at) / 350);
       const x = X(r.eT);
       const y = Y(r.wT);
-      const rad = (L.compact ? 3 : 3.6) * (0.4 + 0.6 * k);
+      const rad = (L.compact ? 3 : 3.6) * (0.4 + 0.6 * e);
       if (r.win) {
-        if (k < 1) glow(ctx, x, y, 14, C.gold, 0.6 * (1 - k));
-        dot(ctx, x, y, rad, alpha(C.gold, 0.9 * k));
-      } else if (r.wS) dot(ctx, x, y, rad, null, alpha(C.cream, 0.6 * k), 1.2);
-      else dot(ctx, x, y, rad, null, alpha(C.ember, k), 1.4);
+        if (e < 1) glow(ctx, x, y, 14, C.gold, 0.6 * (1 - e));
+        dot(ctx, x, y, rad, alpha(C.gold, 0.9 * e));
+      } else if (r.wS) dot(ctx, x, y, rad, null, alpha(C.cream, 0.6 * e), 1.2);
+      else dot(ctx, x, y, rad, null, alpha(C.ember, e), 1.4);
     }
   }
 
@@ -1599,13 +1749,11 @@ export function create({ stage, panel, reduced }) {
     }
     if (!batch?.results.length) return;
     batch.results.forEach((r, k) => {
-      if (r.cut == null) return;
-      dot(ctx, lerp(x0, x1, clamp(r.cut)), y - 8 - ((k * 7) % 5) * 2.2, 2.2, alpha(C.gold, 0.7));
+      if (r.cut != null) dot(ctx, lerp(x0, x1, clamp(r.cut)), y - 7 - ((k * 7) % 5) * 2, 2.2, alpha(C.gold, 0.7));
     });
-    const s = batchStats();
-    const mx = lerp(x0, x1, clamp(s.cut));
-    line(ctx, mx, y - 22, mx, y + 4, C.gold, 1.4);
-    label(ctx, `mean ${fmt.pct(s.cut, 0)}`, mx, y - 27, { size: 10, align: 'center', color: C.gold });
+    const mx = lerp(x0, x1, clamp(batchStats().cut));
+    line(ctx, mx, y - 20, mx, y + 4, C.gold, 1.4);
+    label(ctx, `mean ${fmt.pct(batchStats().cut, 0)}`, mx, y - 25, { size: 10, align: 'center', color: C.gold });
   }
 
   /* ---------------------------------------------------------------- */
@@ -1618,31 +1766,29 @@ export function create({ stage, panel, reduced }) {
     if (race?.running) advanceRace(dt);
     for (const e of events) onEvent(e);
     events.length = 0;
-    if (dirty && map) buildLayers();
+    if (!L.xs) layout(view);
+    if (dirty) buildLayers();
+    if (traceDirty) resetTrace();
 
     view.clear();
-    if (!L.panels) layout(view);
     if (mode === 'race') drawRace(time);
     else drawBatch(time);
 
-    if (frame % 6 === 0 || !race?.running) refresh();
+    if (frame % 6 === 0 || !race.running) refresh();
     if (mode === 'batch') {
       const done = batch?.results.length ?? 0;
       stat.set(L.compact ? `${done}/${MAPS} maps` : `seeded suite · ${done}/${MAPS} maps · ${fmt.int(batch?.ticks ?? 0)} ticks simulated`);
     } else {
       const solved = race.algs.filter((a) => a.solved).length;
-      const clock = race.over ? Math.max(...race.algs.map((a) => a.finish ?? 0)) : race.clock;
-      stat.set(
-        L.compact
-          ? `seed ${seed} · t ${fmt.int(clock)}`
-          : `seed ${seed} · race ${raceNo} · clock ${fmt.int(clock)} / ${fmt.int(race.cap)} ticks · ${solved} of 4 solved${painted ? ` · ${plural(painted, 'cell')} painted` : ''}`,
-      );
+      const clock = fmt.int(raceEnd());
+      const extra = painted ? ` · ${plural(painted, 'cell')} painted` : '';
+      const full = `seed ${seed} · race ${raceNo} · clock ${clock} / ${fmt.int(race.cap)} ticks · ${solved} of 4 solved${extra}`;
+      stat.set(L.compact ? `seed ${seed} · t ${clock}` : full);
     }
   });
 
   L.coarse = matchMedia('(pointer: coarse)').matches;
   newMap(false);
-  refresh();
 
   return {
     start: () => tick.start(),

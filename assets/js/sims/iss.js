@@ -22,7 +22,6 @@ import {
   pointer,
   loop,
   label,
-  labelFit,
   textWidth,
   roundRect,
   glow,
@@ -206,6 +205,7 @@ function newRun(image, truth, pairs) {
   set.forEach((q, i) => (at[`${q.d}.${q.c}.${q.w}`] = i));
   return {
     image,
+    rule: truth,
     set,
     at,
     pred: set.map((q) => CANDIDATES.map((k) => k.f(q.d, q.c))),
@@ -306,11 +306,15 @@ function stats(list) {
   const n = Math.max(1, list.length);
   let used = 0;
   let ok = 0;
+  let wrong = 0;
+  let contra = 0;
   for (const x of list) {
     used += x.used;
     if (x.status === 'certified') ok++;
+    if (x.wrong) wrong++;
+    if (x.status === 'contradiction') contra++;
   }
-  return { avg: used / n, certified: ok / n };
+  return { avg: used / n, certified: ok / n, wrong, contra };
 }
 
 const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
@@ -393,6 +397,14 @@ export function create({ stage, panel, reduced }) {
 
   function advanceJob(dt, time) {
     job.t += dt * (params.speed || 8);
+    if (!job.entry && run.used >= params.budget) {
+      // The budget was lowered while this query was in flight: it is never asked.
+      job = null;
+      settle(run, params.budget);
+      plan();
+      if (run.status !== 'open') finish();
+      return;
+    }
     if (!job.entry && job.t >= T_PICK + T_ASK) {
       job.entry = query(run, job.i, params.budget);
       job.judgeAt = time;
@@ -435,11 +447,7 @@ export function create({ stage, panel, reduced }) {
   }
 
   function step() {
-    if (busyBatch() || certifying || job) return;
-    if (run.status !== 'open') {
-      narrate('This run is over. Tap an agreed image to spot-check it, or load a new image.', 'Run over: tap an image to spot-check it.');
-      return;
-    }
+    if (busyBatch() || certifying || job || run.status !== 'open') return;
     ask(run.plan);
   }
 
@@ -493,7 +501,7 @@ export function create({ stage, panel, reduced }) {
     revealed = true;
     const n = aliveCount(run);
     const all = run.set.length;
-    const t = truthOf();
+    const t = run.rule;
     if (run.status === 'certified') {
       const survivors = run.alive.map((a, k) => (a ? CANDIDATES[k].text : null)).filter(Boolean);
       if (t.outside && run.wrong) {
@@ -515,6 +523,12 @@ export function create({ stage, panel, reduced }) {
       const agree = n === 1 ? 'one candidate survives and fixes the label of' : `${n} surviving candidates agree on`;
       say.say(`Image ${run.image.n} certified after ${plural(run.used, 'intervention')}: ${agree} all ${all} allowed images.${t.outside && run.wrong ? ` The true rule was outside the candidate set, so the certificate is wrong on ${run.wrong} of them.` : ''}`);
     } else if (run.status === 'contradiction') {
+      const e = run.log[run.log.length - 1];
+      narrate(
+        `The black box said ${e.out} for ${doText(run.set[e.i])}, against every survivor: no candidate is left, so the true rule is not a candidate.`,
+        `Contradiction after ${run.used}: no candidate survives.`,
+        C.ember,
+      );
       say.say(`Contradiction after ${plural(run.used, 'intervention')}: no candidate survives, so the true rule is not in the candidate set.`);
     } else if (run.status === 'uncertified') {
       const open = contested(run).length;
@@ -536,8 +550,9 @@ export function create({ stage, panel, reduced }) {
       narrate(`${cap(name)} splits the ${n} survivors ${j.ones} / ${j.zeros}. Asking the black box…`, `${sh} splits ${n} survivors ${j.ones} / ${j.zeros}…`, C.amber);
     } else {
       const v = j.ones ? 1 : 0;
-      const who = n === 1 ? 'The one survivor predicts' : `All ${n} survivors predict`;
-      narrate(`${who} ${v} for ${name}. Asking anyway…`, `${sh}: survivors already agree…`, C.amber);
+      const who = n === 1 ? 'the one survivor predicts' : n === 2 ? 'both survivors predict' : `all ${n} survivors predict`;
+      if (j.prev === 'certified') narrate(`Spot check: ${who} ${v} for ${name}. Asking the black box…`, `Spot check of ${sh}…`, C.amber);
+      else narrate(`${who[0].toUpperCase()}${who.slice(1)} ${v} for ${name}. Asking anyway…`, `${sh}: survivors already agree…`, C.amber);
     }
   }
 
@@ -582,10 +597,10 @@ export function create({ stage, panel, reduced }) {
   // Both strategies certify the same images; chunked so the page stays responsive.
   function advanceBatch() {
     const t0 = performance.now();
-    const cap = reduced ? BATCH : 3;
+    const perFrame = reduced ? BATCH : 3;
     const truth = truthOf();
     let done = 0;
-    while (batch.sep.length < BATCH && done < cap && performance.now() - t0 < 7) {
+    while (batch.sep.length < BATCH && done < perFrame && performance.now() - t0 < 7) {
       const img = makeImage(seed, batch.sep.length + 1);
       const a = certifyAll(newRun(img, truth, params.pairs), 'separation', params.budget, rng(sub(seed, img.n, 2)));
       const b = certifyAll(newRun(img, truth, params.pairs), 'random', params.budget, rng(sub(seed, img.n, 3)));
@@ -688,6 +703,7 @@ export function create({ stage, panel, reduced }) {
       settle(run, v);
       plan();
       if (run.status !== prev && run.status !== 'open') finish();
+      else if (prev === 'uncertified' && run.status === 'open') narrate(`Budget raised to ${plural(v, 'query', 'queries')}: the run can continue.`, 'Budget raised: the run can continue.');
       refresh();
     },
   });
@@ -786,6 +802,26 @@ export function create({ stage, panel, reduced }) {
 
   const view = stageCanvas(stage, { onResize: layout });
   const { ctx } = view;
+
+  // Width of a label as drawn, including uppercase and tracking.
+  function measure(str, o = {}) {
+    const t = o.upper ? String(str).toUpperCase() : String(str);
+    return textWidth(ctx, t, o) + (o.track ?? 0) * t.length;
+  }
+
+  // Like kit.labelFit, but checks the result: small glyphs can advance by whole pixels, so a
+  // proportionally shrunk size may still overflow. Steps down until the text really fits.
+  function fit(str, x, y, maxWidth, o = {}) {
+    let size = o.size ?? 11;
+    const min = o.minSize ?? 10;
+    const w = measure(str, o);
+    if (w > maxWidth) {
+      size = Math.max(min, (size * maxWidth) / w);
+      while (size > min && measure(str, { ...o, size }) > maxWidth) size = Math.max(min, size - 0.25);
+    }
+    label(ctx, str, x, y, { ...o, size });
+    return size;
+  }
   const stat = status(stage);
   const tip = hint(stage, `${window.matchMedia?.('(pointer: coarse)').matches ? 'Tap' : 'Click'} an image in the grid to query it`);
   const ptr = pointer(view.canvas, {
@@ -835,7 +871,7 @@ export function create({ stage, panel, reduced }) {
     const compact = (L.compact = w < 620 || h < 480);
     const pad = Math.max(16, Math.min(40, w * 0.04));
     const cw = w - pad * 2;
-    L.head = { x: pad, y: compact ? 56 : 60, w: cw };
+    L.head = { x: pad, y: compact ? 58 : 60, w: cw };
     const top = L.head.y + (compact ? 42 : 58);
     if (!compact) {
       // Upper band: bench and query log on the left, the bounded set on the right.
@@ -854,7 +890,7 @@ export function create({ stage, panel, reduced }) {
       const bw = clamp(s * 0.64, 44, 72);
       const bh = s * 0.62;
       L.box = { x: L.query.x + s + A * 0.8, y: top + 14 + (s - bh) / 2, w: bw, h: bh };
-      L.out = { x: L.box.x + bw + A * 0.8, y: top + 14 + s / 2 };
+      L.out = { x: L.box.x + Math.max(bw + A * 0.8, 84), y: top + 14 + s / 2 };
       const logY = top + 14 + s + 50;
       L.log = { x: pad, y: logY, w: colL, h: top + bandH - logY };
       L.mat = { x: mx, y: top, w: mw, lw, cw: cell, ch: cell, gx: mx + lw, gy: top + 30, wx: mx + lw + cell * 10 + 14 };
@@ -936,12 +972,13 @@ export function create({ stage, panel, reduced }) {
     if (q) {
       ctx.save();
       ctx.globalAlpha = o.alpha ?? 1;
-      // Big tiles show the 28×28 pixels crisply; small ones are smoothed.
-      const inner = Math.floor(s / 24) * 24;
-      if (inner >= 48) {
+      // Big tiles show the 28×28 pixels crisply at a whole-number scale (cropping a little
+      // of the margin when that fills the tile better); small ones are smoothed.
+      const [crop, inner] = [2, 3].map((c) => [c, Math.floor((s - 4) / (28 - 2 * c)) * (28 - 2 * c)]).sort((a, b) => b[1] - a[1])[0];
+      if (inner >= 2 * (28 - 2 * crop)) {
         ctx.imageSmoothingEnabled = false;
         const off = (s - inner) / 2;
-        ctx.drawImage(glyph(q, style), 2, 2, 24, 24, x + off, y + off, inner, inner);
+        ctx.drawImage(glyph(q, style), crop, crop, 28 - 2 * crop, 28 - 2 * crop, x + off, y + off, inner, inner);
       } else {
         ctx.drawImage(glyph(q, style), x, y, s, s);
       }
@@ -957,16 +994,16 @@ export function create({ stage, panel, reduced }) {
     const H = L.head;
     const R = shown();
     label(ctx, `Image #${String(R.image.n).padStart(2, '0')}`, H.x, H.y, { size: 11, upper: true, track: 1.6, color: C.gold });
-    const t = truthOf();
+    const t = run.rule;
     let text = busyBatch() ? `batch · ${batch.sep.length} / ${BATCH}` : 'true rule hidden';
     let color = INK[3];
     if (revealed && R === run) {
-      text = t.outside ? `true rule (not a candidate): ${t.text}` : `true rule: ${t.text}`;
+      text = t.outside ? `${L.compact ? 'truth, outside the set' : 'true rule (not a candidate)'}: ${t.text}` : `${L.compact ? 'truth' : 'true rule'}: ${t.text}`;
       color = t.outside ? C.ember : C.gold;
     }
-    labelFit(ctx, text, H.x + H.w, H.y, H.w - 110, { size: 11, minSize: 8.5, align: 'right', color });
+    fit(text, H.x + H.w, H.y, H.w - 110, { size: 11, minSize: 8.5, align: 'right', color });
     const n = narration;
-    labelFit(ctx, L.compact ? n.short : n.text, H.x, H.y + (L.compact ? 30 : 34), H.w, { size: L.compact ? 16 : 19, minSize: 11, font: 'serif', italic: true, color: n.tone });
+    fit(L.compact ? n.short : n.text, H.x, H.y + (L.compact ? 30 : 34), H.w, { size: L.compact ? 16 : 19, minSize: 11, font: 'serif', italic: true, color: n.tone });
   }
 
   function drawBench(time) {
@@ -986,13 +1023,13 @@ export function create({ stage, panel, reduced }) {
       const o = { size: 10, upper: true, track: 1.2, color: INK[3] };
       label(ctx, 'base image', B.x, B.y - 9, o);
       label(ctx, 'query', Q.x, B.y - 9, o);
-      label(ctx, 'black box', X.x + X.w / 2, B.y - 9, { ...o, align: 'center' });
+      label(ctx, 'black box', X.x, B.y - 9, o);
       label(ctx, 'label', O.x, B.y - 9, o);
     }
 
     tile(B.x, B.y, s, img, img, { stroke: alpha(C.cream, 0.3) });
     const about = `${img.d} · ${COLOURS[img.c].name} · ${WEIGHTS[img.w]}`;
-    if (!L.compact) label(ctx, about, B.x, B.y + s + 17, { size: 10.5, color: INK[3] });
+    if (!L.compact) fit(about, B.x, B.y + s + 17, Q.x - B.x - 10, { size: 10.5, minSize: 8.5, color: INK[3] });
     arrow(ctx, B.x + s + 5, cy, Q.x - 5, cy, INK[4], 1.2, 5);
 
     if (q) {
@@ -1008,7 +1045,7 @@ export function create({ stage, panel, reduced }) {
     }
     if (!L.compact) {
       const text = q ? doText(q) : 'no query yet';
-      labelFit(ctx, text, Q.x, Q.y + s + 17, X.x + X.w - Q.x, { size: 10.5, minSize: 9, color: pending ? C.amber : q ? INK[2] : INK[4] });
+      fit(text, Q.x, Q.y + s + 17, O.x + 24 - Q.x, { size: 10.5, minSize: 8.5, color: pending ? C.amber : q ? INK[2] : INK[4] });
     }
     arrow(ctx, Q.x + s + 5, cy, X.x - 5, cy, INK[4], 1.2, 5);
 
@@ -1040,12 +1077,12 @@ export function create({ stage, panel, reduced }) {
     if (L.compact) {
       const sx = O.x + Math.round(s * 0.4) + 10;
       const w = L.head.x + L.head.w - sx;
-      labelFit(ctx, `base ${about}`, sx, cy - 12, w, { size: 9.5, minSize: 8, color: INK[3] });
-      labelFit(ctx, q ? doText(q, true) : 'no query yet', sx, cy + 2, w, { size: 10, minSize: 8, color: pending ? C.amber : q ? INK[2] : INK[4] });
+      fit(`base ${about}`, sx, cy - 12, w, { size: 9.5, minSize: 8, color: INK[3] });
+      fit(q ? doText(q, true) : 'no query yet', sx, cy + 2, w, { size: 10, minSize: 8, color: pending ? C.amber : q ? INK[2] : INK[4] });
       let note = `${R.set.length} allowed images`;
       if (pending) note = `split ${job.ones} / ${job.zeros}`;
       else if (last) note = last.gone.length ? `${last.gone.length} eliminated` : 'nobody eliminated';
-      labelFit(ctx, note, sx, cy + 16, w, { size: 9.5, minSize: 8, color: INK[3] });
+      fit(note, sx, cy + 16, w, { size: 9.5, minSize: 8, color: INK[3] });
     }
 
     // Travelling pulses: the chosen image to the query slot, then into the black box.
@@ -1073,16 +1110,17 @@ export function create({ stage, panel, reduced }) {
 
   function drawLog() {
     const G = L.log;
+    const R = shown();
     const rowH = 17;
     const rows = Math.max(1, Math.floor((G.h - 14) / rowH));
     const x2 = G.x + G.w;
-    label(ctx, `Queries · ${run.used} of ${params.budget}`, G.x, G.y, { size: 10, upper: true, track: 1.4, color: C.gold });
+    label(ctx, `Queries · ${R.used} of ${params.budget}`, G.x, G.y, { size: 10, upper: true, track: 1.4, color: C.gold });
     const head = { size: 9.5, align: 'right', color: INK[4] };
     label(ctx, 'split', x2 - 100, G.y, head);
     label(ctx, 'label', x2 - 54, G.y, head);
     label(ctx, 'removed', x2, G.y, head);
-    const entries = run.log.map((e) => ({ ...e, pending: false }));
-    if (job && !job.entry) entries.push({ i: job.i, n: run.used + 1, ones: job.ones, zeros: job.zeros, pending: true });
+    const entries = R.log.map((e) => ({ ...e, pending: false }));
+    if (R === run && job && !job.entry) entries.push({ i: job.i, n: R.used + 1, ones: job.ones, zeros: job.zeros, pending: true });
     if (!entries.length) {
       label(ctx, 'No queries yet.', G.x, G.y + 20, { size: 10.5, color: INK[4] });
       return;
@@ -1093,7 +1131,7 @@ export function create({ stage, panel, reduced }) {
       const y = G.y + 20 + j * rowH;
       const tone = e.pending ? C.amber : INK[2];
       label(ctx, `${hidden && j === 0 ? '…' : '#'}${e.n}`, G.x, y, { size: 10.5, color: INK[4] });
-      labelFit(ctx, doText(run.set[e.i]).replace(/^the /, ''), G.x + 34, y, G.w - 34 - 150, { size: 10.5, minSize: 8.5, color: tone });
+      fit(doText(R.set[e.i]).replace(/^the /, ''), G.x + 34, y, G.w - 34 - 150, { size: 10.5, minSize: 8.5, color: tone });
       label(ctx, `${e.ones} / ${e.zeros}`, x2 - 100, y, { size: 10.5, align: 'right', color: INK[3] });
       label(ctx, e.pending ? '→ ?' : `→ ${e.out}`, x2 - 54, y, { size: 10.5, align: 'right', color: e.pending ? C.amber : C.cream });
       const g = e.pending ? '' : e.gone.length ? `−${e.gone.length}` : '±0';
@@ -1233,7 +1271,7 @@ export function create({ stage, panel, reduced }) {
         else if (a + b) text = `${name}: every survivor says ${a ? 1 : 0}`;
         else text = `${name}: no survivors left`;
       }
-      labelFit(ctx, text, M.x, y, M.w, { size: 10.5, minSize: 8.5, color: INK[2] });
+      fit(text, M.x, y, M.w, { size: 10.5, minSize: 8.5, color: INK[2] });
       return;
     }
     // A small key for the cell marks.
@@ -1258,7 +1296,7 @@ export function create({ stage, panel, reduced }) {
         ctx.setLineDash([]);
       }
       label(ctx, text, x + 25, y + 1, o);
-      x += 25 + textWidth(ctx, text, o) + 16;
+      x += 25 + measure(text, o) + 16;
     }
   }
 
@@ -1279,12 +1317,12 @@ export function create({ stage, panel, reduced }) {
     const titleO = { size: L.compact ? 10 : 11, upper: true, track: L.compact ? 1 : 1.6, color: C.gold };
     const title = L.compact ? 'Candidates' : 'Candidate abstractions';
     label(ctx, title, G.x, G.title, titleO);
-    const tw = textWidth(ctx, title.toUpperCase(), titleO) + title.length * titleO.track;
+    const tw = measure(title, titleO);
     label(ctx, ` · ${n} of ${K} survive`, G.x + tw, G.title, { ...titleO, color: n ? INK[2] : C.ember, track: titleO.track });
     if (!L.compact) {
       const cur = currentIndex(run);
       const text = cur >= 0 ? `badge = predicted label for ${doText(run.set[cur])}` : 'badge = predicted label for the query';
-      labelFit(ctx, text, G.x + G.w, G.title, G.w * 0.42, { size: 10, minSize: 8.5, align: 'right', color: INK[3] });
+      fit(text, G.x + G.w, G.title, G.w * 0.42, { size: 10, minSize: 8.5, align: 'right', color: INK[3] });
     }
     for (let k = 0; k < K; k++) drawCard(k, cardRect(k), time);
   }
@@ -1296,7 +1334,7 @@ export function create({ stage, panel, reduced }) {
     const p = alive ? 0 : t0 == null ? 1 : clamp((time - t0) / 0.4);
     const fade = alive ? 1 : lerp(1, 0.42, easeOut(p));
     const certified = run.status === 'certified' && alive;
-    const isTruth = revealed && cand === truthOf();
+    const isTruth = revealed && cand === run.rule;
     const cur = currentIndex(run);
     const pending = job && !job.entry;
     const lastE = run.log[run.log.length - 1];
@@ -1321,9 +1359,9 @@ export function create({ stage, panel, reduced }) {
     const badgeW = c ? 16 : 34;
     const maxW = r.x + r.w - badgeW - tx - 4;
     const size = c ? Math.min(10, Math.max(8.5, r.h * 0.68)) : 11.5;
-    labelFit(ctx, cand.text, tx, cy + 0.5, maxW, { size, minSize: 8, baseline: 'middle', color: alive ? (certified ? C.gold : INK[1]) : alpha(C.cream, 0.32 * fade + 0.1) });
+    const drawn = fit(cand.text, tx, cy + 0.5, maxW, { size, minSize: 8, baseline: 'middle', color: alive ? (certified ? C.gold : INK[1]) : alpha(C.cream, 0.32 * fade + 0.1) });
     if (!alive && p > 0) {
-      const tw = Math.min(maxW, textWidth(ctx, cand.text, { size }));
+      const tw = Math.min(maxW, measure(cand.text, { size: drawn }));
       line(ctx, tx - 2, cy + 0.5, tx - 2 + (tw + 4) * easeOut(p), cy + 0.5, alpha(C.ember, 0.8), 1.2);
     }
     if (two) {
@@ -1337,7 +1375,7 @@ export function create({ stage, panel, reduced }) {
         note = 'agrees on every allowed image';
         col = alpha(C.gold, 0.7);
       }
-      if (note) labelFit(ctx, note, tx, r.y + r.h * 0.76, r.w - (tx - r.x) - 10, { size: 9.5, minSize: 8, baseline: 'middle', color: col });
+      if (note) fit(note, tx, r.y + r.h * 0.76, r.w - (tx - r.x) - 10, { size: 9.5, minSize: 8, baseline: 'middle', color: col });
     }
 
     // Badge: this candidate's predicted label for the current query.
@@ -1363,8 +1401,8 @@ export function create({ stage, panel, reduced }) {
     const c = L.compact;
     const B = batch;
     const n = B.sep.length;
-    label(ctx, c ? `${BATCH} images · queries per image` : `${BATCH} images · interventions per image`, G.x, G.title, { size: c ? 10 : 11, upper: true, track: c ? 1 : 1.6, color: C.gold });
-    label(ctx, B.done ? 'same images, same budget' : `${n} / ${BATCH}`, G.x + G.w, G.title, { size: 10, align: 'right', color: INK[3] });
+    label(ctx, c ? `${BATCH} images · queries each` : `${BATCH} images · interventions per image`, G.x, G.title, { size: c ? 10 : 11, upper: true, track: c ? 1 : 1.6, color: C.gold });
+    if (!B.done || !c) label(ctx, B.done ? 'same images, same budget' : `${n} / ${BATCH}`, G.x + G.w, G.title, { size: 10, align: 'right', color: INK[3] });
 
     const cats = [
       { name: 'certified', color: C.gold, fill: true, test: (x) => x.status === 'certified' && !x.wrong },
@@ -1386,7 +1424,7 @@ export function create({ stage, panel, reduced }) {
         ctx.strokeRect(lx + 0.5, ly - 3.5, 7, 7);
       }
       label(ctx, k.name, lx + 13, ly + 0.5, lo);
-      lx += 13 + textWidth(ctx, k.name, lo) + (c ? 10 : 18);
+      lx += 13 + measure(k.name, lo) + (c ? 10 : 18);
     }
 
     const ex = run.set.length;
@@ -1416,11 +1454,18 @@ export function create({ stage, panel, reduced }) {
       const y0 = top + r * rowH;
       const base = y0 + rowH - 6;
       const hMax = rowH - 24;
+      // Strategy name, mean and outcome notes, condensed when the row is short.
+      const tight = c || rowH < 84;
       label(ctx, name, G.x, y0 + 14, { size: c ? 9.5 : 10.5, upper: true, track: c ? 0.6 : 1.2, color: C.cream });
       if (list.length) {
         const s = stats(list);
-        label(ctx, s.avg.toFixed(1), G.x, y0 + (c ? 36 : 48), { font: 'serif', size: c ? 22 : 32, color: C.cream });
-        label(ctx, `${Math.round(s.certified * 100)}% certified`, G.x, y0 + (c ? 50 : 66), { size: c ? 8.5 : 9.5, color: INK[3] });
+        label(ctx, s.avg.toFixed(1), G.x, y0 + (tight ? 36 : 48), { font: 'serif', size: tight ? 22 : 32, color: C.cream });
+        const notes = [[`${Math.round(s.certified * 100)}% certified`, INK[3]]];
+        if (s.wrong) notes.push([tight ? `${s.wrong} wrong` : `${s.wrong} of them wrong`, C.ember]);
+        if (s.contra) notes.push([plural(s.contra, 'contradiction'), C.ember]);
+        const room = Math.max(1, Math.floor((rowH - (tight ? 42 : 56)) / 12));
+        const shownNotes = s.wrong && room === 1 ? [notes[1]] : notes.slice(0, room);
+        shownNotes.forEach(([t, col], j) => label(ctx, t, G.x, y0 + (tight ? 50 : 66) + j * (tight ? 12 : 14), { size: c ? 8.5 : 9.5, color: col }));
         const mx = ax0 + (s.avg + 0.5) * bw;
         line(ctx, mx, y0 + 8, mx, base, alpha(C.cream, 0.8), 1, [2, 3]);
         const right = mx + 70 < ax1;
