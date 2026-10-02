@@ -40,6 +40,7 @@ export function initNav({ lenis, onScroll }) {
     const link = e.target.closest('a[href^="#"]');
     if (!link) return;
     const hash = link.getAttribute('href');
+    if (!/^#[\w-]+$/.test(hash)) return;
     const target = hash === '#top' ? document.body : document.querySelector(hash);
     if (!target) return;
     e.preventDefault();

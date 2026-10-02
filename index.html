@@ -27,6 +27,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Geist:wght@300..700&family=Geist+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="assets/css/main.css">
+  <link rel="stylesheet" href="assets/css/sims.css">
   <link rel="modulepreload" href="assets/vendor/three.core.js">
   <link rel="modulepreload" href="assets/vendor/three.module.js">
   <link rel="preload" href="assets/img/portrait-map.png" as="image">
@@ -355,7 +356,7 @@
           <header class="research__intro">
             <p class="label"><span>04</span>Research</p>
             <h2 class="display" data-split="words">Instruments for machine <em>accountability</em>.</h2>
-            <p class="research__lede">7 peer-reviewed papers and 6 preprints across agents, causality, search and security. Selected work:</p>
+            <p class="research__lede">7 peer-reviewed papers and 6 preprints across agents, causality, search and security. Each project below has a live simulation of its method: open one and turn the dials.</p>
             <p class="research__drag" aria-hidden="true"><span>Scroll to explore</span><i></i></p>
           </header>
 
@@ -367,6 +368,7 @@
             <p class="card__metric"><span data-count="76.7" data-decimals="1">76.7</span>%</p>
             <p class="card__metric-label">of audited trajectories showed faithfulness violations (23 of 30)</p>
             <p class="card__desc">Designed and built an intervention-and-replay harness that tests whether an agent’s stated reasoning actually affects its answer.</p>
+            <button class="card__sim" type="button" data-sim="ariadne" aria-label="Run the Project Ariadne simulation"><i aria-hidden="true">▶</i>Run the simulation</button>
             <p class="card__links"><a href="https://arxiv.org/abs/2601.02314" target="_blank" rel="noopener">arXiv ↗</a></p>
           </article>
 
@@ -378,6 +380,7 @@
             <p class="card__metric"><span data-count="56.6" data-decimals="1">56.6</span>M</p>
             <p class="card__metric-label">gas in cumulative savings across 59 contracts and 527 functions</p>
             <p class="card__desc">Combines static analysis, LLM rewrites and differential fuzzing, with 3.99% average execution savings.</p>
+            <button class="card__sim" type="button" data-sim="gaszero" aria-label="Run the GasZero simulation"><i aria-hidden="true">▶</i>Run the simulation</button>
             <p class="card__links"><a href="https://doi.org/10.1109/COMPSAC69091.2026.00126" target="_blank" rel="noopener">IEEE ↗</a></p>
           </article>
 
@@ -389,6 +392,7 @@
             <p class="card__metric"><span data-count="70.3" data-decimals="1">70.3</span>%</p>
             <p class="card__metric-label">of agile-track tasks with unbounded heuristic regions: faster or uniquely solved vs. enforced hill-climbing</p>
             <p class="card__desc">Co-developed a restarting-random-walk planner. In Opti Code Pro, cut node expansions by 82% and runtime by 74% vs. uninformed A* at full refactoring aggression.</p>
+            <button class="card__sim" type="button" data-sim="search" aria-label="Run the Heuristic Search simulation"><i aria-hidden="true">▶</i>Run the simulation</button>
             <p class="card__links"><a href="https://doi.org/10.1609/aaai.v40i43.41044" target="_blank" rel="noopener">AAAI ↗</a><a href="https://arxiv.org/abs/2305.07594" target="_blank" rel="noopener">Opti Code Pro ↗</a></p>
           </article>
 
@@ -400,6 +404,7 @@
             <p class="card__metric"><span data-count="91.5" data-decimals="1">91.5</span>%</p>
             <p class="card__metric-label">mean classifier accuracy over 10 runs on a 210-image microplastics dataset</p>
             <p class="card__desc">Co-developed augmentation search and a conditional-GAN pipeline: +4 points vs. duplication and +5.5 vs. no oversampling.</p>
+            <button class="card__sim" type="button" data-sim="gansemble" aria-label="Run the GANsemble simulation"><i aria-hidden="true">▶</i>Run the simulation</button>
             <p class="card__links"><a href="https://arxiv.org/abs/2404.07356" target="_blank" rel="noopener">arXiv ↗</a></p>
           </article>
 
@@ -411,6 +416,7 @@
             <p class="card__metric"><span data-count="13.6" data-decimals="1">13.6</span></p>
             <p class="card__metric-label">interventions per image on average, on a colored-MNIST causal-abstraction task</p>
             <p class="card__desc">A method for certifying agreement across candidate causal models under bounded interventions, with guarantees conditional on the true abstraction being in the candidate set.</p>
+            <button class="card__sim" type="button" data-sim="iss" aria-label="Run the Interventional Separation Selection simulation"><i aria-hidden="true">▶</i>Run the simulation</button>
             <p class="card__links"><a href="https://arxiv.org/abs/2609.32247" target="_blank" rel="noopener">arXiv ↗</a></p>
           </article>
 
@@ -422,6 +428,7 @@
             <p class="card__metric card__metric--word">Holder-approved</p>
             <p class="card__metric-label">raw artifacts are released only with the holder’s approval</p>
             <p class="card__desc">A federated disclosure protocol that limits shared context to authorized evidence and preserves provenance; specified the architecture and threat model.</p>
+            <button class="card__sim" type="button" data-sim="chronicles" aria-label="Run the Provenance Preserving Chronicles simulation"><i aria-hidden="true">▶</i>Run the simulation</button>
             <p class="card__links"><a href="https://arxiv.org/abs/2607.22953" target="_blank" rel="noopener">arXiv ↗</a></p>
           </article>
 
@@ -433,6 +440,7 @@
             <p class="card__metric"><span data-count="4">4</span></p>
             <p class="card__metric-label">coordinated roles: planning, coding, debugging and review, with execution-driven repair</p>
             <p class="card__desc">AgentMesh is a Python prototype for multi-agent software work. Folio is an experimental paper-review app with PDF ingestion, live rescoring and a reproducible classifier-evaluation workflow.</p>
+            <button class="card__sim" type="button" data-sim="mesh" aria-label="Run the AgentMesh &amp; Folio simulation"><i aria-hidden="true">▶</i>Run the simulation</button>
             <p class="card__links"><a href="https://arxiv.org/abs/2507.19902" target="_blank" rel="noopener">AgentMesh ↗</a><a href="https://github.com/skhanzad/Folio" target="_blank" rel="noopener">Folio ↗</a></p>
           </article>
 
@@ -444,6 +452,7 @@
             <p class="card__metric"><span data-count="1500" data-separator=",">1,500</span><span class="card__metric-of">/2,891</span></p>
             <p class="card__metric-label">benchmark snippets resolved, vs. 1,169 for the baseline</p>
             <p class="card__desc">A replay-and-repair pipeline that cut average runtime from 368.7 to 71.8 seconds. Historical configuration replay supplied 1,495 fixes; LLM fallback supplied five.</p>
+            <button class="card__sim" type="button" data-sim="pllm" aria-label="Run the PLLM+ simulation"><i aria-hidden="true">▶</i>Run the simulation</button>
             <p class="card__links"><a href="https://arxiv.org/abs/2609.26952" target="_blank" rel="noopener">arXiv ↗</a></p>
           </article>
 
@@ -464,6 +473,7 @@
           <h2 class="display" data-split="words">Audit an agent <em>yourself</em>.</h2>
           <p data-reveal>Two agents answer the same refund request with the same explanation. Intervene on the evidence (<code>do(x)</code>) and replay. If an explanation is faithful, changing its cause should change the answer.</p>
           <p class="lab__note" data-reveal>A toy illustration of the intervention-and-replay idea behind Project Ariadne. Not real model output.</p>
+          <button class="card__sim lab__sim" type="button" data-sim="ariadne"><i aria-hidden="true">▶</i>Run the full audit simulation</button>
         </header>
 
         <div class="console" data-lab data-no-intervene>

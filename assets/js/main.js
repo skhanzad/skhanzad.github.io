@@ -8,6 +8,7 @@ import { initNav } from './ui/nav.js';
 import { initCursor } from './ui/cursor.js';
 import { initMarquee, initMagnetic } from './ui/motion.js';
 import { initContact } from './ui/contact.js';
+import { initChamber } from './sims/chamber.js';
 
 const root = document.documentElement;
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -98,8 +99,10 @@ async function boot() {
     ScrollTrigger.addEventListener('refresh', () => world.refresh());
     window.addEventListener('resize', () => world.resize());
     world.refresh();
-    world.update(0, 1 / 60); // compile shaders behind the loader
-    gsap.ticker.add((time, deltaMs) => world.update(time, deltaMs / 1000));
+    world.update(1 / 60); // compile shaders behind the loader
+    gsap.ticker.add((time, deltaMs) => {
+      if (!world.paused) world.update(deltaMs / 1000);
+    });
   }
   ScrollTrigger.refresh();
 
@@ -107,7 +110,7 @@ async function boot() {
     gsap.set(name.chars, { yPercent: 115 });
     gsap.set('[data-hero-fade]', { opacity: 0, y: 24 });
   }
-  if (location.hash) {
+  if (/^#[\w-]+$/.test(location.hash)) {
     const target = document.querySelector(location.hash);
     if (target && lenis) lenis.scrollTo(target, { immediate: true, force: true });
     else target?.scrollIntoView();
@@ -116,6 +119,7 @@ async function boot() {
   await loader.done();
   lenis?.start();
   playIntro({ world, name });
+  initChamber({ world, lenis, reduced });
   signature(world);
 }
 

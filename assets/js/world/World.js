@@ -98,6 +98,8 @@ export class World {
 
     this.frameTimes = [];
     this.downgraded = false;
+    this.paused = false; // set while a simulation has the stage
+    this.clock = 0; // the world's own time, so pausing doesn't make it jump
     this.resize(true);
   }
 
@@ -239,8 +241,10 @@ export class World {
     this.pulseLevel = Math.max(this.pulseLevel, strength);
   }
 
-  update(time, delta) {
+  update(delta) {
     const dt = Math.min(Math.max(delta, 1 / 240), 1 / 30);
+    this.clock += dt;
+    const time = this.clock;
     const y = window.scrollY;
     const vh = window.innerHeight;
     const stages = this.stages;
@@ -307,7 +311,7 @@ export class World {
 
     this.particles.step(time, dt);
     this.renderer.render(this.scene, this.camera);
-    this.watchPerformance(time, delta);
+    this.watchPerformance(delta);
   }
 
   updatePointer(dt, wPortrait) {
@@ -349,8 +353,8 @@ export class World {
   }
 
   // If the GPU struggles, trade resolution for frame rate (once).
-  watchPerformance(time, delta) {
-    if (this.downgraded || time < 5) return;
+  watchPerformance(delta) {
+    if (this.downgraded || this.clock < 5) return;
     this.frameTimes.push(delta);
     if (this.frameTimes.length < 120) return;
     const avg = this.frameTimes.reduce((s, x) => s + x, 0) / this.frameTimes.length;
