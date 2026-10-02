@@ -86,4 +86,13 @@ export class Thread {
     this.object = new THREE.Group();
     this.object.add(line, points);
   }
+
+  dispose() {
+    this.texture.dispose();
+    this.object.traverse((object) => {
+      object.geometry?.dispose();
+      object.material?.dispose();
+    });
+  }
+
 }

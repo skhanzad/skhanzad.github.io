@@ -2,7 +2,7 @@
 
     python3 tools/make-portrait.py
 
-Writes to assets/img/:
+Writes to public/assets/img/:
   portrait-map.png   luminance + alpha map that the particle sampler reads
   sourena-cut.webp   background-removed photo (the "raw artifact" reveal)
   sourena.jpg        web-sized photo with its original backdrop (used for link previews)
@@ -14,7 +14,7 @@ from PIL import Image, ImageFilter
 from scipy import ndimage
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "assets" / "img"
+OUT = ROOT / "public" / "assets" / "img"
 CROP = (0, 0, 1855, 2318)  # head and shoulders, 4:5
 
 src = Image.open(ROOT / "sourena.png").convert("RGB")

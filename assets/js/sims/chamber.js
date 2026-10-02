@@ -1,3 +1,5 @@
+import { gsap } from '../ui/lifecycle.js';
+
 // The simulation chamber: a full-screen dialog that hosts one research simulation at
 // a time. Simulations load on demand; while one is open the page behind is inert, its
 // scroll is locked and the background particle world is paused.
@@ -18,8 +20,7 @@ export const SIMS = [
 
 const HASH = /^#sim\/([\w-]+)$/;
 
-export function initChamber({ world, lenis, reduced }) {
-  const { gsap } = window;
+export function initChamber({ world, lenis, reduced, scope }) {
   const root = document.createElement('div');
   root.className = 'chamber';
   root.hidden = true;
@@ -66,10 +67,12 @@ export function initChamber({ world, lenis, reduced }) {
     document.documentElement.classList.toggle('chamber-open', on);
     if (on) {
       lenis?.stop();
-      inerted = [...document.body.children].filter((n) => n !== root && !n.matches('script, .cursor, .toast'));
-      inerted.forEach((n) => (n.inert = true));
+      inerted = [...document.body.children]
+        .filter((node) => node !== root && !node.matches('script, .cursor, .toast'))
+        .map((node) => ({ node, inert: node.inert }));
+      inerted.forEach(({ node }) => (node.inert = true));
     } else {
-      inerted.forEach((n) => (n.inert = false));
+      inerted.forEach(({ node, inert }) => (node.inert = inert));
       inerted = [];
       lenis?.start();
     }
@@ -89,10 +92,12 @@ export function initChamber({ world, lenis, reduced }) {
   };
 
   async function open(id, from) {
+    if (scope.signal.aborted) return;
     const index = SIMS.findIndex((s) => s.id === id);
     if (index < 0) return;
     const meta = SIMS[index];
     const mine = ++token;
+    gsap.killTweensOf([frame, backdrop]);
     if (root.hidden) {
       trigger = from || document.activeElement;
       root.hidden = false;
@@ -113,21 +118,23 @@ export function initChamber({ world, lenis, reduced }) {
 
     try {
       const mod = await meta.load();
-      if (mine !== token) return;
+      if (mine !== token || scope.signal.aborted) return;
       stage.replaceChildren();
       sim = mod.create({ stage, panel, reduced, meta });
       sim.start?.();
     } catch (err) {
       console.error(err);
-      if (mine !== token) return;
+      if (mine !== token || scope.signal.aborted) return;
       stage.innerHTML = '<p class="chamber__loading">This simulation could not start in this browser.</p>';
     }
   }
 
   function close() {
     if (root.hidden) return;
-    token++;
+    const closing = ++token;
+    gsap.killTweensOf([frame, backdrop]);
     const done = () => {
+      if (closing !== token || scope.signal.aborted) return;
       teardown();
       root.hidden = true;
       current = null;
@@ -146,16 +153,16 @@ export function initChamber({ world, lenis, reduced }) {
     open(SIMS[(i + dir + SIMS.length) % SIMS.length].id);
   };
 
-  root.addEventListener('click', (e) => {
+  scope.on(root, 'click', (e) => {
     if (e.target.closest('[data-close]')) close();
     else if (e.target.closest('[data-prev]')) step(-1);
     else if (e.target.closest('[data-next]')) step(1);
   });
-  document.addEventListener('keydown', (e) => {
+  scope.on(document, 'keydown', (e) => {
     if (root.hidden) return;
     if (e.key === 'Escape') close();
   });
-  document.addEventListener('click', (e) => {
+  scope.on(document, 'click', (e) => {
     const trig = e.target.closest('[data-sim]');
     if (!trig || root.contains(trig)) return;
     e.preventDefault();
@@ -166,8 +173,18 @@ export function initChamber({ world, lenis, reduced }) {
     const m = location.hash.match(HASH);
     if (m) open(m[1]);
   };
-  window.addEventListener('hashchange', fromHash);
+  scope.on(window, 'hashchange', fromHash);
   fromHash();
 
-  return { open, close };
+  return {
+    open,
+    close,
+    destroy() {
+      token++;
+      gsap.killTweensOf([frame, backdrop]);
+      teardown();
+      lock(false);
+      root.remove();
+    },
+  };
 }

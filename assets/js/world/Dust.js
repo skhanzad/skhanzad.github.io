@@ -32,4 +32,10 @@ export class Dust {
     this.points = new THREE.Points(geometry, this.material);
     this.points.frustumCulled = false;
   }
+
+  dispose() {
+    this.points.geometry.dispose();
+    this.material.dispose();
+  }
+
 }

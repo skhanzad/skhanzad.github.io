@@ -1,6 +1,6 @@
+import { gsap, ScrollTrigger } from './lifecycle.js';
 // Header, mobile menu, in-page links and the chapter rail.
-export function initNav({ lenis, onScroll }) {
-  const { gsap, ScrollTrigger } = window;
+export function initNav({ lenis, onScroll, scope }) {
   const nav = document.querySelector('[data-nav]');
   const menu = document.querySelector('[data-menu]');
   const toggle = document.querySelector('[data-menu-toggle]');
@@ -27,8 +27,8 @@ export function initNav({ lenis, onScroll }) {
       lenis?.start();
     }
   };
-  toggle.addEventListener('click', () => setMenu(!open));
-  document.addEventListener('keydown', (e) => {
+  scope.on(toggle, 'click', () => setMenu(!open));
+  scope.on(document, 'keydown', (e) => {
     if (e.key === 'Escape' && open) {
       setMenu(false);
       toggle.focus();
@@ -36,7 +36,7 @@ export function initNav({ lenis, onScroll }) {
   });
 
   // In-page links glide instead of jumping.
-  document.addEventListener('click', (e) => {
+  scope.on(document, 'click', (e) => {
     const link = e.target.closest('a[href^="#"]');
     if (!link) return;
     const hash = link.getAttribute('href');
@@ -94,4 +94,10 @@ export function initNav({ lenis, onScroll }) {
     });
   });
   setActive('top');
+  scope.add(() => {
+    menu.hidden = true;
+    toggle.setAttribute('aria-expanded', 'false');
+    toggleLabel.textContent = 'Menu';
+    nav.classList.remove('is-hidden', 'is-scrolled');
+  });
 }

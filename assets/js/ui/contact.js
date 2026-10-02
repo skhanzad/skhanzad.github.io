@@ -1,27 +1,32 @@
 // Contact details: the copy-to-clipboard email, a toast, and Toronto's local time.
-let toastTimer;
-
-export function toast(message) {
+function toast(message, scope) {
   const el = document.querySelector('[data-toast]');
   if (!el) return;
   el.textContent = message;
   el.classList.add('is-on');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('is-on'), 2400);
+  const version = el.dataset.toastVersion = String(Number(el.dataset.toastVersion || 0) + 1);
+  scope.wait(2400).then((active) => {
+    if (active && el.dataset.toastVersion === version) el.classList.remove('is-on');
+  });
 }
 
-export function initContact() {
+export function initContact({ scope }) {
+  scope.add(() => document.querySelector('[data-toast]')?.classList.remove('is-on'));
   document.querySelectorAll('[data-copy]').forEach((link) => {
     const hint = link.querySelector('[data-copy-hint]');
+    const initialHint = hint?.textContent;
+    scope.add(() => { if (hint) hint.textContent = initialHint; });
     link.dataset.cursorText = 'copy';
-    link.addEventListener('click', async (e) => {
+    scope.on(link, 'click', async (e) => {
       if (!navigator.clipboard) return;
       e.preventDefault();
       try {
         await navigator.clipboard.writeText(link.dataset.copy);
-        toast('Email copied to clipboard');
+        if (scope.signal.aborted) return;
+        toast('Email copied to clipboard', scope);
         if (hint) hint.textContent = 'Copied ✓';
       } catch {
+        if (scope.signal.aborted) return;
         window.location.href = link.href;
       }
     });
@@ -38,6 +43,7 @@ export function initContact() {
     });
     const tick = () => (clock.textContent = format.format(new Date()));
     tick();
-    setInterval(tick, 15000);
+    const timer = setInterval(tick, 15000);
+    scope.add(() => clearInterval(timer));
   }
 }

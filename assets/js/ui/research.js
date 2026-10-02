@@ -1,10 +1,10 @@
+import { gsap, ScrollTrigger } from './lifecycle.js';
 import { drawGlyphs } from './glyphs.js';
 import { countUp, primeCount } from './reveal.js';
 
 // Research: on wide screens the section pins and the cards travel sideways;
 // on narrow screens they simply stack.
-export function initResearch({ reduced }) {
-  const { gsap, ScrollTrigger } = window;
+export function initResearch({ reduced, scope }) {
   const section = document.querySelector('#research');
   if (!section) return;
   const track = section.querySelector('[data-research-track]');
@@ -12,16 +12,20 @@ export function initResearch({ reduced }) {
   const cards = [...section.querySelectorAll('[data-card]')];
   drawGlyphs(section);
 
-  const arrive = (card) => {
+  const arrive = scope.wrap((card) => {
     if (card.classList.contains('is-drawn')) return;
     card.classList.add('is-drawn');
     const num = card.querySelector('[data-count]');
     if (num && !reduced) countUp(num, { duration: 1.8 });
-  };
+  });
   if (!reduced) cards.forEach((card) => card.querySelectorAll('[data-count]').forEach(primeCount));
   else cards.forEach(arrive);
 
   const mm = gsap.matchMedia();
+  scope.add(() => {
+    mm.revert();
+    cards.forEach((card) => card.classList.remove('is-drawn'));
+  });
   mm.add('(min-width: 901px) and (prefers-reduced-motion: no-preference)', () => {
     const distance = () => Math.max(0, track.scrollWidth - window.innerWidth);
     // A card "arrives" once most of it is on screen, whichever way it got there.
@@ -72,7 +76,7 @@ export function initResearch({ reduced }) {
 
   // A soft spotlight that follows the pointer across each card.
   cards.forEach((card) => {
-    card.addEventListener('pointermove', (e) => {
+    scope.on(card, 'pointermove', (e) => {
       const r = card.getBoundingClientRect();
       card.style.setProperty('--mx', `${e.clientX - r.left}px`);
       card.style.setProperty('--my', `${e.clientY - r.top}px`);

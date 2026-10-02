@@ -1,3 +1,4 @@
+import { gsap } from '../ui/lifecycle.js';
 import * as THREE from 'three';
 import { Particles } from './Particles.js';
 import { Thread } from './Thread.js';
@@ -26,81 +27,99 @@ const BUILDERS = {
 // particles from one to the next.
 export class World {
   constructor(canvas, { size, portraitMap, sections, slot, reduced }) {
+    this.events = new AbortController();
     this.canvas = canvas;
-    this.reduced = reduced;
-    this.slotEl = slot;
+    try {
+      this.reduced = reduced;
+      this.slotEl = slot;
 
-    this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
-    this.dprCap = size >= 256 ? 1.75 : 1.5;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.dprCap));
-    this.renderer.setClearColor(0x020122, 1);
+      this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
+      this.dprCap = size >= 256 ? 1.75 : 1.5;
+      this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.dprCap));
+      this.renderer.setClearColor(0x020122, 1);
 
-    this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 120);
-    this.camera.position.set(0, 0, CAM_Z);
+      this.scene = new THREE.Scene();
+      this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 120);
+      this.camera.position.set(0, 0, CAM_Z);
 
-    this.ctx = { w: 1, h: 1, mobile: false, t: 0, p: 0, mx: 0, my: 0, slot: null };
-    this.tmp = { position: new THREE.Vector3(), rotation: new THREE.Euler(), scale: 1, depth: 1 };
-    this.quat = new THREE.Quaternion();
-    this.scaleVec = new THREE.Vector3();
-    this.measure();
+      this.ctx = { w: 1, h: 1, mobile: false, t: 0, p: 0, mx: 0, my: 0, slot: null };
+      this.tmp = { position: new THREE.Vector3(), rotation: new THREE.Euler(), scale: 1, depth: 1 };
+      this.quat = new THREE.Quaternion();
+      this.scaleVec = new THREE.Vector3();
+      this.measure();
 
-    const n = size * size;
-    const lab = F.labyrinth(n);
-    const build = { lab, portraitMap };
-    this.stages = sections.map((s) => ({ ...s, cfg: STAGES[s.name], matrix: new THREE.Matrix4(), top: 0, height: 1 }));
-    const data = this.stages.map((s) => BUILDERS[s.name](n, build));
+      const n = size * size;
+      const lab = F.labyrinth(n);
+      const build = { lab, portraitMap };
+      this.stages = sections.map((s) => ({ ...s, cfg: STAGES[s.name], matrix: new THREE.Matrix4(), top: 0, height: 1 }));
+      const data = this.stages.map((s) => BUILDERS[s.name](n, build));
 
-    // The big bang: every particle starts at the labyrinth's centre and flies outward.
-    this.place(this.stages[0], 0);
-    const origin = new THREE.Vector3().setFromMatrixPosition(this.stages[0].matrix);
-    const positions = F.singularity(n);
-    const velocities = new Float32Array(n * 4);
-    for (let i = 0; i < n; i++) {
-      positions[i * 4] += origin.x;
-      positions[i * 4 + 1] += origin.y;
-      positions[i * 4 + 2] += origin.z;
-      const z = Math.random() * 2 - 1;
-      const a = Math.random() * Math.PI * 2;
-      const s = Math.sqrt(1 - z * z);
-      const speed = reduced ? 0 : 1.2 + Math.pow(Math.random(), 2) * 7.5;
-      velocities[i * 4] = s * Math.cos(a) * speed;
-      velocities[i * 4 + 1] = s * Math.sin(a) * speed;
-      velocities[i * 4 + 2] = z * speed * 0.6;
+      // The big bang: every particle starts at the labyrinth's centre and flies outward.
+      this.place(this.stages[0], 0);
+      const origin = new THREE.Vector3().setFromMatrixPosition(this.stages[0].matrix);
+      const positions = F.singularity(n);
+      const velocities = new Float32Array(n * 4);
+      for (let i = 0; i < n; i++) {
+        positions[i * 4] += origin.x;
+        positions[i * 4 + 1] += origin.y;
+        positions[i * 4 + 2] += origin.z;
+        const z = Math.random() * 2 - 1;
+        const a = Math.random() * Math.PI * 2;
+        const s = Math.sqrt(1 - z * z);
+        const speed = reduced ? 0 : 1.2 + Math.pow(Math.random(), 2) * 7.5;
+        velocities[i * 4] = s * Math.cos(a) * speed;
+        velocities[i * 4 + 1] = s * Math.sin(a) * speed;
+        velocities[i * 4 + 2] = z * speed * 0.6;
+      }
+
+      this.particles = new Particles(this.renderer, size, data, { positions, velocities });
+      this.thread = new Thread(lab.path);
+      this.dust = new Dust(this.ctx.mobile ? 700 : 1600);
+      this.scene.add(this.dust.points, this.particles.points, this.thread.object);
+      this.count = n;
+      this.labIndex = this.stages.findIndex((s) => s.name === 'labyrinth');
+      this.portraitIndex = this.stages.findIndex((s) => s.name === 'portrait');
+
+      // Animated state.
+      this.springBoost = reduced ? 1 : 0;
+      this.threadReveal = reduced ? 1 : 0;
+      this.reveal = 0;
+      this.pulseLevel = 0;
+      this.probe = 0;
+      this.hold = 0;
+      this.burst = 0;
+      if (reduced) this.thread.uniforms.uDraw.value = 1;
+
+      this.raycaster = new THREE.Raycaster();
+      this.ndc = new THREE.Vector2();
+      this.hit = new THREE.Vector3();
+      this.lastHit = new THREE.Vector3();
+      this.moved = new THREE.Vector3();
+      this.pointerVel = new THREE.Vector3();
+      this.far = new THREE.Vector3(0, 0, 1000);
+      this.bindPointer();
+
+      this.frameTimes = [];
+      this.downgraded = false;
+      this.paused = false; // set while a simulation has the stage
+      this.clock = 0; // the world's own time, so pausing doesn't make it jump
+      this.resize(true);
+    } catch (error) {
+      this.dispose();
+      throw error;
     }
+  }
 
-    this.particles = new Particles(this.renderer, size, data, { positions, velocities });
-    this.thread = new Thread(lab.path);
-    this.dust = new Dust(this.ctx.mobile ? 700 : 1600);
-    this.scene.add(this.dust.points, this.particles.points, this.thread.object);
-    this.count = n;
-    this.labIndex = this.stages.findIndex((s) => s.name === 'labyrinth');
-    this.portraitIndex = this.stages.findIndex((s) => s.name === 'portrait');
-
-    // Animated state.
-    this.springBoost = reduced ? 1 : 0;
-    this.threadReveal = reduced ? 1 : 0;
-    this.reveal = 0;
-    this.pulseLevel = 0;
-    this.probe = 0;
-    this.hold = 0;
-    this.burst = 0;
-    if (reduced) this.thread.uniforms.uDraw.value = 1;
-
-    this.raycaster = new THREE.Raycaster();
-    this.ndc = new THREE.Vector2();
-    this.hit = new THREE.Vector3();
-    this.lastHit = new THREE.Vector3();
-    this.moved = new THREE.Vector3();
-    this.pointerVel = new THREE.Vector3();
-    this.far = new THREE.Vector3(0, 0, 1000);
-    this.bindPointer();
-
-    this.frameTimes = [];
-    this.downgraded = false;
-    this.paused = false; // set while a simulation has the stage
-    this.clock = 0; // the world's own time, so pausing doesn't make it jump
-    this.resize(true);
+  dispose() {
+    this.events.abort();
+    this.onHold = null;
+    gsap.killTweensOf(this);
+    if (this.thread) gsap.killTweensOf(this.thread.uniforms.uDraw);
+    this.particles?.dispose();
+    this.thread?.dispose();
+    this.dust?.dispose();
+    this.renderer?.dispose();
+    this.scene?.clear();
   }
 
   measure() {
@@ -141,6 +160,7 @@ export class World {
   }
 
   bindPointer() {
+    const { signal } = this.events;
     const p = (this.pointer = { x: 0, y: 0, sx: 0, sy: 0, active: false, down: false, touch: false });
     const read = (e) => {
       p.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -148,8 +168,8 @@ export class World {
       p.touch = e.pointerType !== 'mouse';
       p.active = true;
     };
-    window.addEventListener('pointermove', read, { passive: true });
-    window.addEventListener('pointerdown', read, { passive: true });
+    window.addEventListener('pointermove', read, { passive: true, signal });
+    window.addEventListener('pointerdown', read, { passive: true, signal });
     // Mouse only: pressing (anywhere but on text or controls) starts an intervention.
     // Cancelling mousedown keeps the drag from turning into a text selection. Touch
     // devices also fire a compatibility mousedown after each tap; p.touch screens it out.
@@ -158,7 +178,7 @@ export class World {
       e.preventDefault();
       p.down = true;
       this.onHold?.(true);
-    });
+    }, { signal });
     const release = () => {
       if (p.down) {
         p.down = false;
@@ -167,14 +187,14 @@ export class World {
       }
       if (p.touch) p.active = false;
     };
-    window.addEventListener('pointerup', release, { passive: true });
-    window.addEventListener('pointercancel', release, { passive: true });
-    window.addEventListener('mouseup', release, { passive: true });
+    window.addEventListener('pointerup', release, { passive: true, signal });
+    window.addEventListener('pointercancel', release, { passive: true, signal });
+    window.addEventListener('mouseup', release, { passive: true, signal });
     document.documentElement.addEventListener('mouseleave', () => {
       p.active = false;
       release();
-    });
-    window.addEventListener('blur', release);
+    }, { signal });
+    window.addEventListener('blur', release, { signal });
   }
 
   // Holding the mouse is an intervention, but never on controls or on the glyphs
@@ -221,14 +241,13 @@ export class World {
 
   intro() {
     if (this.reduced) return;
-    const gsap = window.gsap;
     gsap.to(this, { springBoost: 1, duration: 2.1, delay: 0.15, ease: 'power2.in' });
     gsap.to(this, { threadReveal: 1, duration: 1.2, delay: 1.1 });
     gsap.fromTo(this.thread.uniforms.uDraw, { value: 0 }, { value: 1, duration: 6.5, delay: 1.2, ease: 'power1.inOut' });
   }
 
   setReveal(v) {
-    window.gsap.to(this, { reveal: v, duration: 1.1, ease: 'power2.inOut' });
+    gsap.to(this, { reveal: v, duration: 1.1, ease: 'power2.inOut' });
     const stage = this.stages[this.portraitIndex];
     if (v > 0 && stage) {
       // A soft outward breath from the face as the photograph takes over.

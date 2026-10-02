@@ -1,44 +1,68 @@
 # sourena-khanzadeh.com
 
-Portfolio of Sourena Khanzadeh, Cognitive Trust Architect. A static site with no framework.
-The deployment build copies the site files into `dist/`.
+Portfolio of Sourena Khanzadeh, Cognitive Trust Architect. Built with React and Vite,
+with a three.js particle world, GSAP animations and interactive research simulations.
 
 ## Run locally
 
-ES modules need a server (opening `index.html` from disk won't work):
+Use Node.js 20.19+ or 22.12+ and npm:
 
 ```bash
-python3 -m http.server 4173
+npm install
+npm run dev
 # then open http://localhost:4173
 ```
 
 Add `?debug` to the URL to expose `window.world` and `window.lenis` in the console.
+Use `npm run dev -- --port 4174` if port 4173 is already in use.
+Component edits reload the page to reset split text and pinned animations. CSS changes
+update in place.
 
 ## Deploy
 
-Run `npm run build` to prepare `dist/` for any static host (Netlify, Vercel, GitHub Pages,
-S3, Cloudflare Pages). The build uses Node.js and has no npm dependencies.
+Run `npm run build` to bundle the site into `dist/`. Use `npm run preview` to inspect the
+production build locally.
 
 For Netlify, connect this repository. `netlify.toml` sets the build command to `npm run build`
-and the publish directory to `dist`.
+and the publish directory to `dist`, using Node.js 22.
 
-The output contains `index.html`, `assets/` and `resume.pdf`, which is linked from the page.
+The output includes the page, bundled JavaScript/CSS, images and résumé. The files in
+`public/` are copied directly into the build. Simulation modules load on demand.
+
+## Browser checks
+
+```bash
+npx playwright install chromium
+npm test
+```
+
+The checks build and serve the production site, then exercise desktop and mobile navigation,
+research simulations and reduced-motion behavior.
 
 ## Where things live
 
 | Path | What it is |
 | --- | --- |
-| `index.html` | All page content (text, links, research cards) |
+| `index.html` | HTML entry, search/social metadata and React mount point |
+| `src/main.jsx` | React entry and stylesheet imports |
+| `src/App.jsx` | Page composition |
+| `src/components/` | Page sections, navigation, research cards and footer |
+| `src/hooks/usePortfolioEffects.js` | Mounts and cleans up the animation runtime |
 | `assets/css/main.css` | Design tokens (palette, type) at the top, then one block per section |
-| `assets/js/main.js` | Boot: loader, smooth scroll, WebGL world, UI modules, intro |
+| `assets/js/main.js` | Animation runtime: loader, smooth scroll, WebGL world, UI modules, intro |
 | `assets/js/world/` | The particle simulation (three.js GPGPU) |
 | `assets/js/world/formations.js` | The eight particle shapes: labyrinth, trajectories, portrait, knot, graph, futures, armillary, galaxy |
 | `assets/js/world/stages.js` | Where each shape sits on screen and how its particles behave |
 | `assets/js/ui/` | Scroll reveals, timeline thread, research gallery, the Lab, nav, cursor |
-| `assets/vendor/` | three.js r186, GSAP 3.15 + ScrollTrigger, Lenis 1.3 (vendored, so no CDN) |
+| `public/assets/img/` | Portrait, particle map, favicon and social image |
+| `public/resume.pdf` | Downloadable résumé |
+| `vite.config.js` | React build and development server settings |
+| `netlify.toml` | Netlify build command, publish directory and Node.js version |
+
+React, three.js, GSAP and Lenis are installed through npm and bundled locally.
 
 Each `<section data-formation="…">` owns a particle shape; scrolling from one section to the
-next morphs the particles between them. To reorder sections, move them in `index.html`.
+next morphs the particles between them. To reorder sections, move their components in `src/App.jsx`.
 
 ## Research simulations
 
@@ -71,5 +95,5 @@ Replace `sourena.png` (a head-and-shoulders shot on a plain backdrop works best)
 python3 tools/make-portrait.py   # needs numpy, scipy, pillow
 ```
 
-This regenerates the particle map and the web photos in `assets/img/`. The script keys out a
+This regenerates the particle map and the web photos in `public/assets/img/`. The script keys out a
 blue backdrop (the `blue < 24` test); a different backdrop colour needs a different key.

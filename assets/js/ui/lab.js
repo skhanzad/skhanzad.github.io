@@ -1,3 +1,4 @@
+import { gsap } from './lifecycle.js';
 // The Lab: a toy counterfactual audit. Two agents give the same explanation for the
 // same refund decision; only one of them is telling the truth about why.
 const BASE = { days: 41, tier: 'basic' };
@@ -56,12 +57,9 @@ function judge(active, changed) {
       };
 }
 
-const wait = (ms) => new Promise((r) => setTimeout(r, ms));
-
-export function initLab({ world, reduced }) {
+export function initLab({ world, reduced, scope }) {
   const root = document.querySelector('[data-lab]');
   if (!root) return;
-  const { gsap } = window;
   const tabs = [...root.querySelectorAll('[data-agent]')];
   const doButtons = [...root.querySelectorAll('[data-do]')];
   const reset = root.querySelector('[data-lab-reset]');
@@ -72,10 +70,31 @@ export function initLab({ world, reduced }) {
   const verdict = root.querySelector('[data-verdict]');
   const log = root.querySelector('[data-log]');
   const status = root.querySelector('[data-lab-status]');
+  const emptyLog = log.querySelector('.log__empty');
+  const entries = new Set();
+  const initial = [...root.querySelectorAll('[data-var], [data-explain], [data-answer], [data-lab-status], .verdict__title, .verdict__body')]
+    .map((el) => ({ el, text: el.textContent, className: el.className }));
 
   let agent = 'alpha';
   const active = new Set();
   let busy = false;
+  scope.add(() => {
+    [...doButtons, reset, ...tabs].forEach((button) => (button.disabled = false));
+    steps.forEach((step) => step.classList.remove('is-scan'));
+    entries.forEach((entry) => entry.remove());
+    if (emptyLog) emptyLog.hidden = false;
+    initial.forEach(({ el, text, className }) => {
+      el.textContent = text;
+      el.className = className;
+    });
+    verdict.className = 'verdict';
+    doButtons.forEach((button) => button.setAttribute('aria-pressed', 'false'));
+    tabs.forEach((tab) => {
+      const selected = tab.dataset.agent === 'alpha';
+      tab.setAttribute('aria-selected', String(selected));
+      tab.tabIndex = selected ? 0 : -1;
+    });
+  });
 
   const state = () => ({
     days: active.has('days') ? DO.days : BASE.days,
@@ -88,11 +107,16 @@ export function initLab({ world, reduced }) {
       return Promise.resolve();
     }
     return new Promise((resolve) => {
-      gsap
-        .timeline({ onComplete: resolve })
+      const finish = () => {
+        scope.signal.removeEventListener('abort', finish);
+        resolve();
+      };
+      scope.signal.addEventListener('abort', finish, { once: true });
+      scope.run(() => gsap
+        .timeline({ onComplete: finish })
         .to(el, { opacity: 0, y: -8, duration: 0.16, ease: 'power2.in' })
         .add(mutate)
-        .fromTo(el, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.38, ease: 'expo.out' });
+        .fromTo(el, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.38, ease: 'expo.out' }));
     });
   };
 
@@ -103,25 +127,30 @@ export function initLab({ world, reduced }) {
     vars.tier.classList.toggle('is-do', active.has('tier'));
   };
 
-  const setVerdict = ({ tone, title, body }) => {
+  const setVerdict = scope.wrap(({ tone, title, body }) => {
     verdict.className = `verdict${tone ? ` verdict--${tone}` : ''}`;
     verdict.querySelector('.verdict__title').textContent = title;
     verdict.querySelector('.verdict__body').textContent = body;
     if (!reduced) gsap.fromTo(verdict, { y: 10, opacity: 0.4 }, { y: 0, opacity: 1, duration: 0.6, ease: 'expo.out' });
-  };
+  });
 
-  const addLog = (s, decision, changed, result) => {
-    log.querySelector('.log__empty')?.remove();
+  const addLog = scope.wrap((s, decision, changed, result) => {
+    if (emptyLog) emptyLog.hidden = true;
     const parts = [...active].map((k) => (k === 'days' ? `delivered = ${s.days}d` : `tier = ${s.tier}`));
     const li = document.createElement('li');
     const mark = result.tone === 'bad' ? '✗' : result.tone === 'ok' ? '✓' : '~';
     li.innerHTML = `<span class="log__mark log__mark--${result.tone || 'none'}">${mark}</span><span></span><span></span>`;
     li.children[1].textContent = `${AGENTS[agent].name} · do(${parts.join(', ')}) → ${decision === 'approve' ? 'approved' : 'denied'}${changed ? '' : ' (unchanged)'}`;
     li.children[2].textContent = result.title.toLowerCase();
+    entries.add(li);
     log.prepend(li);
-    while (log.children.length > 5) log.lastElementChild.remove();
+    if (entries.size > 5) {
+      const oldest = entries.values().next().value;
+      oldest.remove();
+      entries.delete(oldest);
+    }
     if (!reduced) gsap.from(li, { opacity: 0, x: -12, duration: 0.5, ease: 'expo.out' });
-  };
+  });
 
   const setBusy = (value) => {
     busy = value;
@@ -137,6 +166,7 @@ export function initLab({ world, reduced }) {
     const decision = decide(s);
     const changed = decision !== decide(BASE);
     for (const [i, step] of steps.entries()) {
+      if (scope.signal.aborted) return;
       step.classList.add('is-scan');
       if (i === 0) renderVars(s);
       if (i === 2) {
@@ -151,7 +181,7 @@ export function initLab({ world, reduced }) {
           answerEl.className = `answer answer--${decision}`;
         });
       }
-      await wait(reduced ? 0 : 220);
+      if (!await scope.wait(reduced ? 0 : 220)) return;
       step.classList.remove('is-scan');
     }
     const result = judge(active, changed);
@@ -162,7 +192,7 @@ export function initLab({ world, reduced }) {
   };
 
   doButtons.forEach((button) => {
-    button.addEventListener('click', () => {
+    scope.on(button, 'click', () => {
       if (busy) return;
       const key = button.dataset.do;
       if (active.has(key)) active.delete(key);
@@ -172,7 +202,7 @@ export function initLab({ world, reduced }) {
     });
   });
 
-  reset.addEventListener('click', () => {
+  scope.on(reset, 'click', () => {
     if (busy) return;
     active.clear();
     doButtons.forEach((b) => b.setAttribute('aria-pressed', 'false'));
@@ -192,8 +222,8 @@ export function initLab({ world, reduced }) {
   };
   tabs.forEach((t, i) => {
     t.tabIndex = t.getAttribute('aria-selected') === 'true' ? 0 : -1;
-    t.addEventListener('click', () => select(t.dataset.agent));
-    t.addEventListener('keydown', (e) => {
+    scope.on(t, 'click', () => select(t.dataset.agent));
+    scope.on(t, 'keydown', (e) => {
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
       e.preventDefault();
       const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];

@@ -1,6 +1,6 @@
+import { ScrollTrigger } from './lifecycle.js';
 // The Path: a gold thread drawn through each role's knot as the timeline scrolls by.
 export function initTimeline({ reduced }) {
-  const { ScrollTrigger } = window;
   const root = document.querySelector('[data-timeline]');
   if (!root) return;
   const base = root.querySelector('.timeline__base');
@@ -54,6 +54,9 @@ export function initTimeline({ reduced }) {
     roles.forEach((role, i) => role.classList.toggle('is-lit', drawn >= marks[i] - 1));
   };
 
+  // A restored scroll position can trigger onUpdate during construction.
+  // Build the SVG path before ScrollTrigger measures its initial progress.
+  build();
   ScrollTrigger.create({
     trigger: root,
     start: 'top 62%',
@@ -64,5 +67,4 @@ export function initTimeline({ reduced }) {
     },
     onRefresh: build,
   });
-  build();
 }

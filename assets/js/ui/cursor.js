@@ -1,6 +1,6 @@
 // A two-part cursor: a dot that tracks the pointer exactly and a ring that trails it.
 // The ring swells over links and turns ember while the pointer is "intervening".
-export function initCursor() {
+export function initCursor({ scope }) {
   if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) return null;
   const root = document.querySelector('[data-cursor]');
   if (!root) return null;
@@ -8,6 +8,13 @@ export function initCursor() {
   const dot = root.querySelector('.cursor__dot');
   const label = root.querySelector('[data-cursor-label]');
   document.documentElement.classList.add('has-cursor');
+  scope.add(() => {
+    root.classList.remove('has-label', 'is-link', 'is-hold');
+    root.style.removeProperty('opacity');
+    ring.style.removeProperty('transform');
+    dot.style.removeProperty('transform');
+    label.textContent = '';
+  });
 
   let x = -100;
   let y = -100;
@@ -22,8 +29,8 @@ export function initCursor() {
     root.classList.toggle('has-label', !!text);
   };
 
-  window.addEventListener(
-    'pointermove',
+  scope.on(
+    window, 'pointermove',
     (e) => {
       if (e.pointerType !== 'mouse') return;
       x = e.clientX;
@@ -37,18 +44,18 @@ export function initCursor() {
     },
     { passive: true },
   );
-  document.documentElement.addEventListener('mouseleave', () => {
+  scope.on(document.documentElement, 'mouseleave', () => {
     root.style.opacity = '0';
   });
 
-  document.addEventListener('pointerover', (e) => {
+  scope.on(document, 'pointerover', (e) => {
     const target = e.target.closest?.('a, button, [data-cursor-text]');
     root.classList.toggle('is-link', !!target);
     hoverLabel = target?.dataset.cursorText || (target?.matches('a[target="_blank"]') ? 'open ↗' : '');
     if (!hold) setLabel(hoverLabel);
   });
 
-  window.gsap.ticker.add(() => {
+  scope.tick(() => {
     rx += (x - rx) * 0.2;
     ry += (y - ry) * 0.2;
     dot.style.transform = `translate3d(${x}px, ${y}px, 0)`;

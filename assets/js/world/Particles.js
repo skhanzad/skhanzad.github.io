@@ -59,7 +59,10 @@ export class Particles {
     this.posVar.material.uniforms.uDelta = { value: 0.016 };
 
     const error = this.gpu.init();
-    if (error) throw new Error(error);
+    if (error) {
+      this.dispose();
+      throw new Error(error);
+    }
 
     const geometry = new THREE.BufferGeometry();
     const ref = new Float32Array(this.count * 2);
@@ -97,6 +100,13 @@ export class Particles {
     this.points = new THREE.Points(geometry, this.material);
     this.points.frustumCulled = false;
     this.publish();
+  }
+
+  dispose() {
+    this.gpu.dispose();
+    this.targets.forEach((texture) => texture.dispose());
+    this.points?.geometry.dispose();
+    this.material?.dispose();
   }
 
   setFormations(a, b) {
