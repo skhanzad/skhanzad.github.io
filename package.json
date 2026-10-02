@@ -1,0 +1,13 @@
+{
+  "name": "sourenakhanzadeh",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sourena Khanzadeh's portfolio website.",
+  "type": "module",
+  "scripts": {
+    "build": "node tools/build.mjs",
+    "dev": "python3 -m http.server \"${PORT:-4173}\"",
+    "start": "npm run dev",
+    "portrait": "python3 tools/make-portrait.py"
+  }
+}

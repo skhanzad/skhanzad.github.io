@@ -73,9 +73,10 @@ async function boot() {
   loader.set(0.8);
   await frame();
 
+  // The research gallery pins first: triggers created after it account for its spacing.
+  initResearch({ reduced });
   initReveals({ reduced });
   initTimeline({ reduced });
-  initResearch({ reduced });
   initLab({ world, reduced });
   initNav({ lenis, onScroll });
   initMarquee({ getVelocity: () => lenis?.velocity ?? 0, reduced });
