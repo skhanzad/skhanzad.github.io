@@ -2,8 +2,8 @@ export default function Contact() {
   return (
     <section className="contact section" id="contact" data-formation="galaxy" data-chapter="contact">
       <p className="label"><span>07</span>Contact</p>
-      <h2 className="contact__title" data-split="words">Let’s build AI that <em>deserves</em> trust.</h2>
-      <p className="contact__lede" data-reveal="">Have an agent that needs auditing, a research question, or a collaboration in mind? Write to me.</p>
+      <h2 className="contact__title" data-split="words">Let’s build systems people can <em>trust</em>.</h2>
+      <p className="contact__lede" data-reveal="">Working on distributed infrastructure, cybersecurity, blockchain or collaborative AI? Let’s talk.</p>
       <div className="contact__email-wrap" data-reveal="">
         <a className="contact__email" href="mailto:sourena.khanzadeh@gmail.com" data-copy="sourena.khanzadeh@gmail.com" data-magnetic="">
           <span className="contact__email-text">sourena.khanzadeh@gmail.com</span>

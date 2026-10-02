@@ -34,7 +34,7 @@ export default function SiteChrome() {
           <span className="nav__name">Sourena Khanzadeh</span>
         </a>
         <nav className="nav__links" aria-label="Sections">
-          <a href="#thread">Thread</a>
+          <a href="#thread">Expertise</a>
           <a href="#architect">Architect</a>
           <a href="#path">Path</a>
           <a href="#research">Research</a>
@@ -50,7 +50,7 @@ export default function SiteChrome() {
       <div className="menu" id="menu" data-menu="" hidden>
         <nav aria-label="Menu">
           <ol>
-            <li><a href="#thread"><span>01</span>The Thread</a></li>
+            <li><a href="#thread"><span>01</span>Expertise</a></li>
             <li><a href="#architect"><span>02</span>The Architect</a></li>
             <li><a href="#path"><span>03</span>The Path</a></li>
             <li><a href="#research"><span>04</span>Research</a></li>
@@ -66,7 +66,7 @@ export default function SiteChrome() {
         <div className="rail__line"><span className="rail__fill" data-rail-fill=""></span></div>
         <ol>
           <li><a href="#top" data-rail-link="top"><b>00</b><span>Entrance</span></a></li>
-          <li><a href="#thread" data-rail-link="thread"><b>01</b><span>The Thread</span></a></li>
+          <li><a href="#thread" data-rail-link="thread"><b>01</b><span>Expertise</span></a></li>
           <li><a href="#architect" data-rail-link="architect"><b>02</b><span>The Architect</span></a></li>
           <li><a href="#path" data-rail-link="path"><b>03</b><span>The Path</span></a></li>
           <li><a href="#research" data-rail-link="research"><b>04</b><span>Research</span></a></li>

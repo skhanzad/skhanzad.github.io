@@ -4,8 +4,8 @@ export default function Architect() {
       <p className="label about__label"><span>02</span>The Architect</p>
       <div className="about__grid">
         <div className="about__copy">
-          <h2 className="display" data-split="words">Trust lives in the gap between what AI <em>says</em> and what it <em>does</em>.</h2>
-          <p className="lede" data-reveal="">I’m a Computer Science Ph.D. and AI research engineer building auditable agents through causal evaluation, grounded retrieval, tool orchestration and privacy controls.</p>
+          <h2 className="display" data-split="words">Building secure systems and <em>reasoning agents</em>.</h2>
+          <p className="lede" data-reveal="">I’m a Computer Science Ph.D. and AI research engineer working across distributed systems, cybersecurity, blockchain, AI reasoning and multi-agent coordination.</p>
           <p data-reveal="">My work moves between industry, government and academia: agentic systems at Flybits, perspective-aware agents with MIT Media Lab’s sAIpien, evaluation research at Toronto Metropolitan University, and knowledge-informed anomaly detection at the National Research Council Canada.</p>
 
           <dl className="stats" data-reveal="">
