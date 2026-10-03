@@ -3,7 +3,7 @@ export default function Lab() {
     <section className="lab section" id="lab" data-formation="futures" data-chapter="lab">
       <div className="lab__grid">
         <header className="lab__head">
-          <p className="label"><span>05</span>The Lab</p>
+          <p className="label"><span>06</span>The Lab</p>
           <h2 className="display" data-split="words">Audit an agent <em>yourself</em>.</h2>
           <p data-reveal="">Two agents answer the same refund request with the same explanation. Intervene on the evidence (<code>do(x)</code>) and replay. If an explanation is faithful, changing its cause should change the answer.</p>
           <p className="lab__note" data-reveal="">A toy illustration of the intervention-and-replay idea behind Project Ariadne. Not real model output.</p>

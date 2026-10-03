@@ -1,6 +1,6 @@
 import { test as base, expect } from '@playwright/test';
 
-const chapters = ['top', 'thread', 'architect', 'path', 'research', 'lab', 'toolkit', 'contact'];
+const chapters = ['top', 'trust', 'thread', 'architect', 'path', 'research', 'lab', 'toolkit', 'contact'];
 const simulations = [
   ['ariadne', 'Project Ariadne'],
   ['gaszero', 'GasZero'],
@@ -79,6 +79,33 @@ test('desktop starts, preserves portfolio content, and serves public assets', as
     expect(response.ok(), path).toBeTruthy();
     expect(response.headers()['content-type'], path).toContain(type);
   }
+});
+
+test('the trust chapter defines the title while the mind is audited, then boxed', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await ready(page, '/?debug');
+  await expect(page.getByRole('heading', { level: 2, name: 'Cognitive trust architect' })).toBeAttached();
+  await expect(page.locator('[data-trust-act] h3')).toHaveText(['Cognitive', 'Trust', 'Architect']);
+
+  const pin = await page.evaluate(() => {
+    const section = document.querySelector('#trust');
+    const spacer = section.parentElement;
+    return { top: spacer.getBoundingClientRect().top + window.scrollY, length: spacer.offsetHeight - section.offsetHeight };
+  });
+  expect(pin.length).toBeGreaterThan(0);
+  const readout = page.locator('[data-trust-readout]');
+  for (const [fraction, text] of [
+    [0.1, 'mind · unexamined'],
+    [0.45, /^audit · do\(x\) · slice \d+ of 26$/],
+    [0.8, /^structure · \d+ of 12 edges$/],
+    [0.99, 'glass box · verified ✓'],
+  ]) {
+    await page.evaluate((y) => window.lenis.scrollTo(y, { immediate: true, force: true }), pin.top + fraction * pin.length);
+    await expect(readout).toHaveText(text);
+  }
+  // By the end the mind is lucid throughout and its box is built.
+  await expect.poll(() => page.evaluate(() => window.world.particles.sim.uLucidA.value.toArray())).toEqual([-9, 1, 0, 1]);
+  await expect(page.locator('[data-trust-dim].is-on')).toHaveCount(3);
 });
 
 test('research simulations load, run an audit, navigate, and restore focus on close', async ({ page }) => {

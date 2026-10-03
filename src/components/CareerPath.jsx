@@ -2,7 +2,7 @@ export default function CareerPath() {
   return (
     <section className="path section" id="path" data-formation="knot" data-chapter="path">
       <header className="section__head">
-        <p className="label"><span>03</span>The Path</p>
+        <p className="label"><span>04</span>The Path</p>
         <h2 className="display" data-split="words">One thread through industry, government and <em>academia</em>.</h2>
       </header>
 

@@ -1,7 +1,7 @@
 export default function SiteChrome() {
   return (
     <>
-      <a className="skip" href="#thread">Skip to content</a>
+      <a className="skip" href="#trust">Skip to content</a>
 
       <div className="loader" data-loader="" aria-hidden="true">
         <svg className="loader__mark" viewBox="0 0 32 32"><use href="#mark"/></svg>
@@ -34,6 +34,7 @@ export default function SiteChrome() {
           <span className="nav__name">Sourena Khanzadeh</span>
         </a>
         <nav className="nav__links" aria-label="Sections">
+          <a href="#trust">Trust</a>
           <a href="#thread">Expertise</a>
           <a href="#architect">Architect</a>
           <a href="#path">Path</a>
@@ -50,13 +51,14 @@ export default function SiteChrome() {
       <div className="menu" id="menu" data-menu="" hidden>
         <nav aria-label="Menu">
           <ol>
-            <li><a href="#thread"><span>01</span>Expertise</a></li>
-            <li><a href="#architect"><span>02</span>The Architect</a></li>
-            <li><a href="#path"><span>03</span>The Path</a></li>
-            <li><a href="#research"><span>04</span>Research</a></li>
-            <li><a href="#lab"><span>05</span>The Lab</a></li>
-            <li><a href="#toolkit"><span>06</span>Toolkit</a></li>
-            <li><a href="#contact"><span>07</span>Contact</a></li>
+            <li><a href="#trust"><span>01</span>Trust by design</a></li>
+            <li><a href="#thread"><span>02</span>Expertise</a></li>
+            <li><a href="#architect"><span>03</span>The Architect</a></li>
+            <li><a href="#path"><span>04</span>The Path</a></li>
+            <li><a href="#research"><span>05</span>Research</a></li>
+            <li><a href="#lab"><span>06</span>The Lab</a></li>
+            <li><a href="#toolkit"><span>07</span>Toolkit</a></li>
+            <li><a href="#contact"><span>08</span>Contact</a></li>
           </ol>
         </nav>
         <a className="menu__resume" href="resume.pdf" download="Sourena-Khanzadeh-Resume.pdf">Download résumé (PDF)</a>
@@ -66,13 +68,14 @@ export default function SiteChrome() {
         <div className="rail__line"><span className="rail__fill" data-rail-fill=""></span></div>
         <ol>
           <li><a href="#top" data-rail-link="top"><b>00</b><span>Entrance</span></a></li>
-          <li><a href="#thread" data-rail-link="thread"><b>01</b><span>Expertise</span></a></li>
-          <li><a href="#architect" data-rail-link="architect"><b>02</b><span>The Architect</span></a></li>
-          <li><a href="#path" data-rail-link="path"><b>03</b><span>The Path</span></a></li>
-          <li><a href="#research" data-rail-link="research"><b>04</b><span>Research</span></a></li>
-          <li><a href="#lab" data-rail-link="lab"><b>05</b><span>The Lab</span></a></li>
-          <li><a href="#toolkit" data-rail-link="toolkit"><b>06</b><span>Toolkit</span></a></li>
-          <li><a href="#contact" data-rail-link="contact"><b>07</b><span>Contact</span></a></li>
+          <li><a href="#trust" data-rail-link="trust"><b>01</b><span>Trust by design</span></a></li>
+          <li><a href="#thread" data-rail-link="thread"><b>02</b><span>Expertise</span></a></li>
+          <li><a href="#architect" data-rail-link="architect"><b>03</b><span>The Architect</span></a></li>
+          <li><a href="#path" data-rail-link="path"><b>04</b><span>The Path</span></a></li>
+          <li><a href="#research" data-rail-link="research"><b>05</b><span>Research</span></a></li>
+          <li><a href="#lab" data-rail-link="lab"><b>06</b><span>The Lab</span></a></li>
+          <li><a href="#toolkit" data-rail-link="toolkit"><b>07</b><span>Toolkit</span></a></li>
+          <li><a href="#contact" data-rail-link="contact"><b>08</b><span>Contact</span></a></li>
         </ol>
       </nav>
     </>

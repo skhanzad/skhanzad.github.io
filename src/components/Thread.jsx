@@ -30,9 +30,9 @@ const domains = [
 
 export default function Thread() {
   return (
-    <section className="expertise section" id="thread" data-formation="graph" data-chapter="thread" aria-labelledby="expertise-title">
+    <section className="expertise section" id="thread" data-formation="orbit" data-chapter="thread" aria-labelledby="expertise-title">
       <div className="expertise__inner">
-        <p className="label"><span>01</span>Expertise</p>
+        <p className="label"><span>02</span>Expertise</p>
         <header className="expertise__head">
           <h2 className="display" id="expertise-title" data-split="words">Engineering across systems, security and <em>AI</em>.</h2>
           <p className="expertise__intro" data-reveal="">My work connects software infrastructure, security research and intelligent agents. These are the skills I bring from research into engineering.</p>

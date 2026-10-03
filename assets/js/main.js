@@ -4,7 +4,9 @@ import { World } from './world/World.js';
 import { split, scramble } from './ui/text.js';
 import { initReveals } from './ui/reveal.js';
 import { initTimeline } from './ui/timeline.js';
+import { initTrust } from './ui/trust.js';
 import { initResearch } from './ui/research.js';
+import { initExpertise } from './ui/expertise.js';
 import { initLab } from './ui/lab.js';
 import { initNav } from './ui/nav.js';
 import { initCursor } from './ui/cursor.js';
@@ -85,9 +87,11 @@ export function initPortfolio() {
     if (!await scope.frame()) return;
 
     scope.run(() => {
-      // Create the pinned gallery first so later triggers include its spacing.
+      // Create the pinned sections first, in page order, so later triggers include their spacing.
+      initTrust({ world, reduced, scope });
       initResearch({ reduced, scope });
       initReveals({ reduced, scope });
+      initExpertise({ world, scope });
       initTimeline({ reduced });
       initLab({ world, reduced, scope });
       initNav({ lenis, onScroll, scope });
@@ -155,7 +159,7 @@ export function initPortfolio() {
 function signature(world) {
   const count = world ? `${world.count.toLocaleString('en-US')} particles` : 'a static fallback';
   console.log(
-    `%cYou found the thread.%c\n\nEverything behind this page is one GPU simulation (${count}), steered by your scroll and your cursor.\nHold the mouse anywhere quiet to intervene: do(x).\n\nAgents worth auditing? sourena.khanzadeh@gmail.com`,
+    `%cYou found the thread.%c\n\nEverything behind this page is one GPU simulation (${count}), steered by your scroll and your cursor.\nHold the mouse anywhere quiet to intervene: do(x). In chapter 01, point at the mind to look inside it.\n\nAgents worth auditing? sourena.khanzadeh@gmail.com`,
     'font: italic 26px "Instrument Serif", Georgia, serif; color: #EDD382;',
     'font: 12px/1.6 "Geist Mono", monospace; color: #F2F3AE;',
   );

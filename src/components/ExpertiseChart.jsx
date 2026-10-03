@@ -25,9 +25,9 @@ export default function ExpertiseChart({ domains }) {
   const angle = 360 / domains.length;
 
   return (
-    <div className="expertise-explorer" data-reveal="" data-no-intervene="">
+    <div className="expertise-explorer" data-reveal="" data-no-intervene="" data-active={active}>
       <div className="expertise-explorer__visual">
-        <figure className="expertise-chart">
+        <figure className="expertise-chart" data-formation-slot="">
           <svg className="expertise-chart__svg" viewBox="0 0 560 560" role="group" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}>
             <title id={`${id}-title`}>Areas of expertise</title>
             <desc id={`${id}-description`}>Five equally sized segments for distributed systems, cybersecurity, blockchain, AI reasoning and multi-agent coordination. Select a segment to explore its skills.</desc>

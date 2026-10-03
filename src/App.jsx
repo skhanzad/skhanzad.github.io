@@ -1,5 +1,6 @@
 import SiteChrome from './components/SiteChrome.jsx';
 import Hero from './components/Hero.jsx';
+import Trust from './components/Trust.jsx';
 import Thread from './components/Thread.jsx';
 import Architect from './components/Architect.jsx';
 import AffiliationsMarquee from './components/AffiliationsMarquee.jsx';
@@ -19,6 +20,7 @@ export default function App() {
       <SiteChrome />
       <main>
         <Hero />
+        <Trust />
         <Thread />
         <Architect />
         <AffiliationsMarquee />

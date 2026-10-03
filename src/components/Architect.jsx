@@ -1,7 +1,7 @@
 export default function Architect() {
   return (
     <section className="about section" id="architect" data-formation="portrait" data-chapter="architect">
-      <p className="label about__label"><span>02</span>The Architect</p>
+      <p className="label about__label"><span>03</span>The Architect</p>
       <div className="about__grid">
         <div className="about__copy">
           <h2 className="display" data-split="words">Building secure systems and <em>reasoning agents</em>.</h2>

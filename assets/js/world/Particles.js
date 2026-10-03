@@ -4,9 +4,11 @@ import { velocityShader, positionShader, particleVertex, particleFragment } from
 
 // A GPU particle simulation: position and velocity live in float textures that
 // ping-pong every frame. Each particle springs toward its slot in the current
-// formation (or a blend of two while the page scrolls between them).
+// formation (or a blend of two while the page scrolls between them). A formation
+// may also have a lucid state (`alts[i]`), which its particles move into as it is
+// audited (see the lucid GLSL in shaders.js).
 export class Particles {
-  constructor(renderer, size, formations, start) {
+  constructor(renderer, size, formations, start, alts = []) {
     this.size = size;
     this.count = size * size;
 
@@ -23,11 +25,19 @@ export class Particles {
     this.gpu.setVariableDependencies(this.velVar, [this.velVar, this.posVar]);
     this.gpu.setVariableDependencies(this.posVar, [this.velVar, this.posVar]);
 
-    this.targets = formations.map((data) => {
-      const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType);
-      tex.needsUpdate = true;
-      return tex;
-    });
+    // One texture per distinct array: sections may share a formation.
+    this.textures = new Map();
+    const texture = (data) => {
+      if (!this.textures.has(data)) {
+        const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat, THREE.FloatType);
+        tex.needsUpdate = true;
+        this.textures.set(data, tex);
+      }
+      return this.textures.get(data);
+    };
+    this.targets = formations.map(texture);
+    // Formations without a lucid state sample their own target (and never use it).
+    this.alts = formations.map((data, i) => texture(alts[i] || data));
 
     this.sim = this.velVar.material.uniforms;
     Object.assign(this.sim, {
@@ -35,6 +45,11 @@ export class Particles {
       uDelta: { value: 0.016 },
       uTargetA: { value: this.targets[0] },
       uTargetB: { value: this.targets[0] },
+      uAltA: { value: this.alts[0] },
+      uAltB: { value: this.alts[0] },
+      uLucidA: { value: new THREE.Vector4(9, 0, 0, 0) },
+      uLucidB: { value: new THREE.Vector4(9, 0, 0, 0) },
+      uLensRadius: { value: 0.8 },
       uPlaceA: { value: new THREE.Matrix4() },
       uPlaceB: { value: new THREE.Matrix4() },
       uSwirlA: { value: 0 },
@@ -82,6 +97,16 @@ export class Particles {
         uVelTex: { value: null },
         uTargetA: this.sim.uTargetA,
         uTargetB: this.sim.uTargetB,
+        uAltA: this.sim.uAltA,
+        uAltB: this.sim.uAltB,
+        uLucidA: this.sim.uLucidA,
+        uLucidB: this.sim.uLucidB,
+        uLensRadius: this.sim.uLensRadius,
+        uRayOrigin: this.sim.uRayOrigin,
+        uRayDir: this.sim.uRayDir,
+        uCentreDepth: { value: 10 },
+        uSpotA: { value: new THREE.Vector4() },
+        uSpotB: { value: new THREE.Vector4() },
         uTime: this.sim.uTime,
         uSize: { value: 2.5 },
         uScale: { value: 10 },
@@ -104,7 +129,7 @@ export class Particles {
 
   dispose() {
     this.gpu.dispose();
-    this.targets.forEach((texture) => texture.dispose());
+    this.textures?.forEach((texture) => texture.dispose());
     this.points?.geometry.dispose();
     this.material?.dispose();
   }
@@ -112,6 +137,8 @@ export class Particles {
   setFormations(a, b) {
     this.sim.uTargetA.value = this.targets[a];
     this.sim.uTargetB.value = this.targets[b];
+    this.sim.uAltA.value = this.alts[a];
+    this.sim.uAltB.value = this.alts[b];
   }
 
   step(time, delta) {

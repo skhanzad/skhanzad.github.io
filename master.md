@@ -21,3 +21,8 @@ you have a freedom for design and you must abide by the following laws
 
 Be the creativist you can be, believe in yourself and do it like your life depends on you 
 use my profile pic as well @sourena.png
+
+
+# LOOP
+MAKE A 3d Object related to Cognitive Trust Architect, make the website look out of the world and do not stop
+unitl you give yourself a 10/10 on creativity.

@@ -37,7 +37,7 @@ npm test
 ```
 
 The checks build and serve the production site, then exercise desktop and mobile navigation,
-research simulations and reduced-motion behavior.
+the trust chapter's pinned acts, research simulations and reduced-motion behavior.
 
 ## Where things live
 
@@ -51,9 +51,11 @@ research simulations and reduced-motion behavior.
 | `assets/css/main.css` | Design tokens (palette, type) at the top, then one block per section |
 | `assets/js/main.js` | Animation runtime: loader, smooth scroll, WebGL world, UI modules, intro |
 | `assets/js/world/` | The particle simulation (three.js GPGPU) |
-| `assets/js/world/formations.js` | The eight particle shapes: labyrinth, trajectories, portrait, knot, graph, futures, armillary, galaxy |
-| `assets/js/world/stages.js` | Where each shape sits on screen and how its particles behave |
-| `assets/js/ui/` | Scroll reveals, timeline thread, research gallery, the Lab, nav, cursor |
+| `assets/js/world/formations.js` | The particle shapes: labyrinth, mind, orbit, trajectories, portrait, knot, graph, futures, armillary, galaxy |
+| `assets/js/world/stages.js` | Where each shape sits on screen and how its particles behave; the trust chapter's acts |
+| `assets/js/world/Scan.js` | The audit scanner ring that travels down the mind |
+| `assets/js/world/Glow.js` | Bloom around the brightest particles (larger particle budgets only) |
+| `assets/js/ui/` | Scroll reveals, the trust chapter, timeline thread, research gallery, the Lab, nav, cursor |
 | `public/assets/img/` | Portrait, particle map, favicon and social image |
 | `public/resume.pdf` | Downloadable résumé |
 | `vite.config.js` | React build and development server settings |
@@ -63,6 +65,30 @@ React, three.js, GSAP and Lenis are installed through npm and bundled locally.
 
 Each `<section data-formation="…">` owns a particle shape; scrolling from one section to the
 next morphs the particles between them. To reorder sections, move their components in `src/App.jsx`.
+An element inside a section marked `data-formation-slot` anchors that section's shape to it and
+carries it along as the page scrolls (the portrait photo, the expertise chart, the toolkit's orrery).
+
+## Trust by design
+
+Chapter 01 (`src/components/Trust.jsx`, `assets/js/ui/trust.js`) defines *cognitive trust
+architect* one word at a time while the section stays pinned for 3.2 screens:
+
+1. **Cognitive.** The hero's labyrinth becomes a particle brain: a folded cortex with synapses
+   firing, wrapped in a haze.
+2. **Trust.** An audit scanner descends through the mind. Above it the cortex resolves into
+   contour slices and the reasoning trace (observe → retrieve → explain → answer, as in the Lab)
+   is drawn as one thread, with labels pinned to its steps.
+3. **Architect.** The haze condenses into a glass box, drawn edge by edge, whose dimension lines
+   are labelled provenance, privacy and verification.
+
+The `mind` formation has a second, *lucid* state (`alt` in `formations.js`). The shaders blend each
+particle between its organic and lucid homes by the scan's height, the box's construction order and
+a lens that follows the pointer (`lucidity` in `shaders.js`). Act timings are `ACTS` in `stages.js`;
+the pin length is `PIN` in `ui/trust.js`; the copy lives in `Trust.jsx`. With reduced motion, or
+without WebGL, the chapter is not pinned and its acts read as a list.
+
+Selecting a domain in the expertise chart lights the matching cluster of the particle orbit
+around it (`ui/expertise.js`).
 
 ## Research simulations
 

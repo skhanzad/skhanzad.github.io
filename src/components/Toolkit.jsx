@@ -1,9 +1,12 @@
 export default function Toolkit() {
   return (
     <section className="toolkit section" id="toolkit" data-formation="armillary" data-chapter="toolkit">
-      <header className="section__head">
-        <p className="label"><span>06</span>Toolkit</p>
-        <h2 className="display" data-split="words">The instruments behind the <em>instruments</em>.</h2>
+      <header className="section__head toolkit__head">
+        <div>
+          <p className="label"><span>07</span>Toolkit</p>
+          <h2 className="display" data-split="words">The instruments behind the <em>instruments</em>.</h2>
+        </div>
+        <div className="toolkit__orrery" data-formation-slot="" aria-hidden="true"></div>
       </header>
       <div className="kits">
         <div className="kit" data-reveal="">

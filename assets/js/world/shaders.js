@@ -79,6 +79,40 @@ vec3 ramp(float t) {
 }
 `;
 
+// Lucidity. A formation may have a second, lucid state (its alt texture): the mind's
+// cortex resolved into contour slices, its haze condensed into a glass box. uLucid*
+// say how lucid it is right now:
+//   x  the audit scan: particles whose lucid home lies above this local height are lucid
+//   y  construction, 0..1: haze particles (tone 2 + build order) join the box in order
+//   z  the pointer's lens, 0..1: anything near the pointer ray turns lucid
+//   w  1 when the formation has a lucid state at all
+const lucid = /* glsl */ `
+uniform sampler2D uAltA;
+uniform sampler2D uAltB;
+uniform vec4 uLucidA;
+uniform vec4 uLucidB;
+uniform float uLensRadius;
+
+float lucidity(vec4 home, vec4 alt, vec4 lucid, vec3 world, vec3 rayOrigin, vec3 rayDir) {
+  if (home.w >= 2.0) {
+    float order = home.w - 2.0;
+    return smoothstep(order, order + 0.06, lucid.y);
+  }
+  float scan = smoothstep(lucid.x - 0.03, lucid.x + 0.03, alt.y);
+  vec3 rel = world - rayOrigin;
+  float d = length(rel - rayDir * dot(rel, rayDir));
+  float lens = (1.0 - smoothstep(uLensRadius * 0.5, uLensRadius, d)) * lucid.z;
+  return max(scan, lens);
+}
+
+// The target a particle seeks: its organic home blended toward its lucid one.
+vec4 lucidTarget(vec4 home, vec4 alt, vec4 lucid, vec3 world, vec3 rayOrigin, vec3 rayDir, out float k) {
+  k = lucidity(home, alt, lucid, world, rayOrigin, rayDir);
+  float tone = home.w >= 2.0 ? 0.1 : home.w;
+  return vec4(mix(home.xyz, alt.xyz, k), mix(tone, alt.w, k));
+}
+`;
+
 // Velocity: spring toward the (morphing) target, a turbulent flow, and the pointer,
 // which behaves as a probe (a ray that parts the particles) or, while held, as an
 // intervention that drags everything into a vortex. Releasing fires a burst.
@@ -109,6 +143,7 @@ uniform float uBurst;
 uniform float uPulse;
 
 ${noise}
+${lucid}
 
 float hash12(vec2 p) {
   vec3 p3 = fract(vec3(p.xyx) * 0.1031);
@@ -130,10 +165,16 @@ void main() {
   vec4 vel = texture2D(textureVelocity, uv);
   vec4 a = texture2D(uTargetA, uv);
   vec4 b = texture2D(uTargetB, uv);
+  float ka = 0.0;
+  float kb = 0.0;
+  if (uLucidA.w > 0.5) a = lucidTarget(a, texture2D(uAltA, uv), uLucidA, pos.xyz, uRayOrigin, uRayDir, ka);
+  if (uLucidB.w > 0.5) b = lucidTarget(b, texture2D(uAltB, uv), uLucidB, pos.xyz, uRayOrigin, uRayDir, kb);
 
   float seed = hash12(uv * 517.31);
   float m = clamp(uMorph * (1.0 + uSpread) - seed * uSpread, 0.0, 1.0);
   m = m * m * (3.0 - 2.0 * m);
+  // Lucid particles hold still and sharp; organic ones keep drifting.
+  float calm = 1.0 - 0.82 * mix(ka, kb, m);
   vec3 ta = (uPlaceA * vec4(swirl(a.xyz, uSwirlA), 1.0)).xyz;
   vec3 tb = (uPlaceB * vec4(swirl(b.xyz, uSwirlB), 1.0)).xyz;
   float flight = sin(m * 3.14159265);
@@ -150,7 +191,7 @@ void main() {
   vec3 acc = (target - p) * uSpring * stiff * (1.0 - flight * 0.6);
 
   vec3 f = flow(p * uNoiseScale + vec3(0.0, 0.0, uTime * 0.07));
-  acc += f * (uNoise + flight * 1.6 + far * 1.5 + uPulse * 2.2) * 0.08;
+  acc += f * (uNoise * calm + flight * 1.6 + far * 1.5 + uPulse * 2.2) * 0.08;
 
   vec3 rel = p - uRayOrigin;
   vec3 closest = uRayOrigin + uRayDir * dot(rel, uRayDir);
@@ -197,29 +238,80 @@ uniform float uSize;
 uniform float uScale;
 uniform float uOpacity;
 uniform float uHeat;
+uniform vec3 uRayOrigin;
+uniform vec3 uRayDir;
+uniform float uCentreDepth;
+uniform vec4 uSpotA;
+uniform vec4 uSpotB;
 attribute vec2 aRef;
 attribute float aRand;
 varying vec3 vColor;
 varying float vAlpha;
 
 ${ramp}
+${lucid}
+
+// A formation can single out a point in its local space (xyz), lit by w: the selected
+// expertise in the orbit, say.
+float spot(vec3 home, vec4 s) {
+  return s.w * (1.0 - smoothstep(0.03, 0.3, distance(home, s.xyz)));
+}
+
+// How a particle of a lucid formation looks: x tone, y lucidity, z glow, w presence.
+vec4 look(vec4 home, sampler2D altTex, vec4 lucid, vec3 world) {
+  vec4 alt = texture2D(altTex, aRef);
+  float k;
+  vec4 t = lucidTarget(home, alt, lucid, world, uRayOrigin, uRayDir, k);
+  float glow = 0.0;
+  float presence = 1.0;
+  if (home.w < 2.0) {
+    // The audit scan burns white-hot where it cuts through the mind.
+    glow += exp(-pow((alt.y - lucid.x) * 20.0, 2.0)) * 1.3;
+    // Synapses fire through the unexamined mind in travelling waves...
+    float wave = 0.5 + 0.5 * sin(dot(home.xyz, vec3(2.3, 3.1, 1.7)) * 2.2 - uTime * 1.7);
+    float fire = pow(max(0.0, sin(uTime * (1.1 + aRand * 1.9) + aRand * 91.0)), 120.0);
+    glow += (1.0 - k) * fire * pow(wave, 6.0) * 1.3;
+    // ...and once lucid, verified signal circles each slice. The slices are many and
+    // overlap toward the middle, so they sit a little quieter than the organic mind.
+    float ring = 0.5 + 0.5 * sin(atan(alt.z, alt.x) * 2.0 - uTime * 1.25 + alt.y * 7.0);
+    glow += k * pow(ring, 16.0) * 0.55;
+    presence = mix(1.0, 0.74, k);
+  } else {
+    // The haze stays faint; the finished frame carries a slow current in build order.
+    presence = mix(0.45, 1.0, k);
+    glow += k * pow(fract((home.w - 2.0) * 2.0 - uTime * 0.18), 28.0) * 0.9;
+  }
+  return vec4(t.w, k, glow, presence);
+}
 
 void main() {
   vec4 pos = texture2D(uPosTex, aRef);
   vec4 vel = texture2D(uVelTex, aRef);
-  float tone = mix(texture2D(uTargetA, aRef).w, texture2D(uTargetB, aRef).w, vel.w);
+  vec4 ta = texture2D(uTargetA, aRef);
+  vec4 tb = texture2D(uTargetB, aRef);
+  vec4 la = vec4(ta.w, 0.0, 0.0, 1.0);
+  vec4 lb = vec4(tb.w, 0.0, 0.0, 1.0);
+  if (uLucidA.w > 0.5) la = look(ta, uAltA, uLucidA, pos.xyz);
+  if (uLucidB.w > 0.5) lb = look(tb, uAltB, uLucidB, pos.xyz);
+  vec4 l = mix(la, lb, vel.w);
+  float glow = l.z + mix(spot(ta.xyz, uSpotA), spot(tb.xyz, uSpotB), vel.w) * (0.8 + 0.2 * sin(uTime * 3.0));
   float speed = length(vel.xyz);
   float heat = smoothstep(0.8, 6.0, speed) * uHeat;
 
-  vec3 color = ramp(tone + (aRand - 0.5) * 0.1);
+  vec3 color = ramp(l.x + (aRand - 0.5) * 0.1);
   color = mix(color, vec3(1.0, 0.42, 0.26), heat * 0.7);
+  color = mix(color, vec3(1.0, 0.97, 0.86), clamp(glow, 0.0, 1.0) * 0.85);
 
   vec4 mv = modelViewMatrix * vec4(pos.xyz, 1.0);
   gl_Position = projectionMatrix * mv;
   float twinkle = 0.78 + 0.22 * sin(uTime * (0.9 + aRand * 2.2) + aRand * 61.0);
-  gl_PointSize = max(1.0, uSize * (0.55 + aRand * 0.9) * (1.0 + heat * 0.7) * uScale / -mv.z);
+  gl_PointSize = max(1.0, uSize * (0.55 + aRand * 0.9) * (1.0 + heat * 0.7 + glow * 0.8) * uScale / -mv.z);
+  // Lucid formations read as solids: whatever lies behind their centre dims, a cheap
+  // stand-in for occlusion that keeps the near folds and slices legible.
+  float solid = mix(step(0.5, uLucidA.w), step(0.5, uLucidB.w), vel.w);
+  float behind = smoothstep(-0.3, 1.5, -mv.z - uCentreDepth);
   vColor = color;
-  vAlpha = uOpacity * twinkle * (0.75 + heat * 0.5);
+  vAlpha = uOpacity * twinkle * (0.75 + heat * 0.5) * (1.0 + glow * 1.1) * l.w * (1.0 - solid * 0.66 * behind);
 }
 `;
 
@@ -291,6 +383,44 @@ void main() {
   float pulse = exp(-pow((vS - wave) * 14.0, 2.0));
   vec3 color = mix(vec3(0.93, 0.83, 0.51), vec3(1.0, 1.0, 0.9), pulse);
   gl_FragColor = vec4(color, uOpacity * (0.6 + 0.4 * pulse));
+}
+`;
+
+// The audit scanner: a gantry ring with a faint sheet of light, carried down the mind
+// at the scan level. uv spans -1..1 across the ellipse.
+export const scanVertex = /* glsl */ `
+uniform mat4 uPlace;
+uniform float uLevel;
+uniform vec2 uExtent;
+uniform vec3 uCentre;
+varying vec2 vUv;
+
+void main() {
+  vUv = position.xy;
+  vec3 local = vec3(uCentre.x + position.x * uExtent.x, uLevel, uCentre.z + position.y * uExtent.y);
+  gl_Position = projectionMatrix * viewMatrix * uPlace * vec4(local, 1.0);
+}
+`;
+
+export const scanFragment = /* glsl */ `
+uniform float uOpacity;
+uniform float uTime;
+varying vec2 vUv;
+
+void main() {
+  float r = length(vUv);
+  if (r > 1.0) discard;
+  float sheet = (1.0 - smoothstep(0.0, 1.0, r)) * 0.1;
+  float rim = smoothstep(0.955, 0.985, r) * (1.0 - smoothstep(0.988, 1.0, r));
+  // Calibration ticks inside the rim, a major one every fifth.
+  float a = atan(vUv.y, vUv.x) / 6.2831853 * 96.0;
+  float tick = step(0.86, fract(a)) * step(0.9, r) * (1.0 - step(0.955, r));
+  float major = step(0.8, fract(a / 5.0)) * step(0.86, r) * (1.0 - step(0.955, r)) * step(0.86, fract(a));
+  // A fine grating sweeping across the sheet.
+  float grating = pow(abs(sin(vUv.x * 46.0 - uTime * 3.0)), 30.0) * 0.06 * (1.0 - r);
+  vec3 color = mix(vec3(0.988, 0.62, 0.31), vec3(1.0, 0.97, 0.86), clamp(rim + tick, 0.0, 1.0));
+  float alpha = sheet + grating + rim * 0.85 + tick * 0.4 + major * 0.35;
+  gl_FragColor = vec4(color, alpha * uOpacity);
 }
 `;
 

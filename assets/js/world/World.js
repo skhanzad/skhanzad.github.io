@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { Particles } from './Particles.js';
 import { Thread } from './Thread.js';
 import { Dust } from './Dust.js';
+import { Scan } from './Scan.js';
+import { Glow } from './Glow.js';
 import { STAGES } from './stages.js';
 import * as F from './formations.js';
 
@@ -11,15 +13,18 @@ const CAM_Z = 10;
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const ease = (rate, dt) => 1 - Math.exp(-rate * dt);
 
+// Each builder returns a formation's points, and `alt` for one with a lucid state.
 const BUILDERS = {
-  labyrinth: (n, ctx) => ctx.lab.points,
-  trajectories: (n) => F.trajectories(n).points,
-  portrait: (n, ctx) => F.portrait(n, ctx.portraitMap).points,
-  knot: (n) => F.knot(n).points,
-  graph: (n) => F.graph(n).points,
-  futures: (n) => F.futures(n).points,
-  armillary: (n) => F.armillary(n).points,
-  galaxy: (n) => F.galaxy(n).points,
+  labyrinth: (n, ctx) => ({ points: ctx.lab.points }),
+  mind: (n) => F.mind(n),
+  orbit: (n) => F.orbit(n),
+  trajectories: (n) => F.trajectories(n),
+  portrait: (n, ctx) => F.portrait(n, ctx.portraitMap),
+  knot: (n) => F.knot(n),
+  graph: (n) => F.graph(n),
+  futures: (n) => F.futures(n),
+  armillary: (n) => F.armillary(n),
+  galaxy: (n) => F.galaxy(n),
 };
 
 // The whole WebGL layer: one fixed canvas behind the page. Sections of the page
@@ -31,18 +36,20 @@ export class World {
     this.canvas = canvas;
     try {
       this.reduced = reduced;
-      this.slotEl = slot;
 
       this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, alpha: false, powerPreference: 'high-performance' });
       this.dprCap = size >= 256 ? 1.75 : 1.5;
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.dprCap));
       this.renderer.setClearColor(0x020122, 1);
+      // Bloom where there is GPU to spare (the larger particle budgets).
+      this.glow = size >= 192 ? new Glow(this.renderer, { background: 0x020122 }) : null;
+      this.bufferSize = new THREE.Vector2();
 
       this.scene = new THREE.Scene();
       this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 120);
       this.camera.position.set(0, 0, CAM_Z);
 
-      this.ctx = { w: 1, h: 1, mobile: false, t: 0, p: 0, mx: 0, my: 0, slot: null };
+      this.ctx = { w: 1, h: 1, mobile: false, reduced, t: 0, p: 0, pin: 0, mx: 0, my: 0, slot: null };
       this.tmp = { position: new THREE.Vector3(), rotation: new THREE.Euler(), scale: 1, depth: 1 };
       this.quat = new THREE.Quaternion();
       this.scaleVec = new THREE.Vector3();
@@ -51,8 +58,28 @@ export class World {
       const n = size * size;
       const lab = F.labyrinth(n);
       const build = { lab, portraitMap };
-      this.stages = sections.map((s) => ({ ...s, cfg: STAGES[s.name], matrix: new THREE.Matrix4(), top: 0, height: 1 }));
-      const data = this.stages.map((s) => BUILDERS[s.name](n, build));
+      this.stages = sections.map((s) => ({
+        ...s,
+        cfg: STAGES[s.name],
+        // An element the formation sits on, tracked every frame (the portrait's photo
+        // slot, the expertise chart).
+        slotEl: s.el.querySelector('[data-formation-slot]') || (s.name === 'portrait' ? slot : null),
+        matrix: new THREE.Matrix4(),
+        lucid: new THREE.Vector4(9, 0, 0, 0),
+        spot: new THREE.Vector4(),
+        spotTo: new THREE.Vector4(),
+        top: 0,
+        height: 1,
+        pinLength: 0,
+      }));
+      // Sections that share a formation share its data.
+      const cache = new Map();
+      const built = this.stages.map((s) => {
+        if (!cache.has(s.name)) cache.set(s.name, BUILDERS[s.name](n, build));
+        return cache.get(s.name);
+      });
+      const data = built.map((b) => b.points);
+      const alts = built.map((b) => b.alt || null);
 
       // The big bang: every particle starts at the labyrinth's centre and flies outward.
       this.place(this.stages[0], 0);
@@ -72,10 +99,14 @@ export class World {
         velocities[i * 4 + 2] = z * speed * 0.6;
       }
 
-      this.particles = new Particles(this.renderer, size, data, { positions, velocities });
+      this.particles = new Particles(this.renderer, size, data, { positions, velocities }, alts);
       this.thread = new Thread(lab.path);
       this.dust = new Dust(this.ctx.mobile ? 700 : 1600);
       this.scene.add(this.dust.points, this.particles.points, this.thread.object);
+      if (this.stages.some((s) => s.name === 'mind')) {
+        this.scan = new Scan({ centre: [0, 0, -0.03], extent: [1.02, 1.24] });
+        this.scene.add(this.scan.object);
+      }
       this.count = n;
       this.labIndex = this.stages.findIndex((s) => s.name === 'labyrinth');
       this.portraitIndex = this.stages.findIndex((s) => s.name === 'portrait');
@@ -86,6 +117,7 @@ export class World {
       this.reveal = 0;
       this.pulseLevel = 0;
       this.probe = 0;
+      this.lens = 0; // the lucid lens follows an active pointer
       this.hold = 0;
       this.burst = 0;
       if (reduced) this.thread.uniforms.uDraw.value = 1;
@@ -99,6 +131,10 @@ export class World {
       this.far = new THREE.Vector3(0, 0, 1000);
       this.bindPointer();
 
+      this.frameListeners = new Set();
+      this.projected = new THREE.Vector3();
+      this.stageA = null;
+      this.stageB = null;
       this.frameTimes = [];
       this.downgraded = false;
       this.paused = false; // set while a simulation has the stage
@@ -113,10 +149,13 @@ export class World {
   dispose() {
     this.events.abort();
     this.onHold = null;
+    this.frameListeners?.clear();
     gsap.killTweensOf(this);
     if (this.thread) gsap.killTweensOf(this.thread.uniforms.uDraw);
     this.particles?.dispose();
     this.thread?.dispose();
+    this.scan?.dispose();
+    this.glow?.dispose();
     this.dust?.dispose();
     this.renderer?.dispose();
     this.scene?.clear();
@@ -131,6 +170,7 @@ export class World {
     this.ctx.w = (this.ctx.h * W) / H;
     this.ctx.mobile = W < 820;
     this.wpp = this.ctx.h / H;
+    if (this.particles) this.particles.sim.uLensRadius.value = Math.min(this.ctx.h, this.ctx.w) * 0.16;
   }
 
   resize(force = false) {
@@ -140,6 +180,8 @@ export class World {
     if (!force && W === this.W && Math.abs(H - this.H) < 140) return;
     this.measure();
     this.renderer.setSize(W, H, false);
+    this.renderer.getDrawingBufferSize(this.bufferSize);
+    this.glow?.setSize(this.bufferSize.x, this.bufferSize.y);
     this.camera.aspect = W / H;
     this.camera.updateProjectionMatrix();
     const scale = this.renderer.getPixelRatio() * (H / 900) * CAM_Z;
@@ -148,14 +190,17 @@ export class World {
     this.dust.uniforms.uScale.value = scale;
   }
 
-  // Document positions of each stage's section (pinned sections measure their spacer).
+  // Document positions of each stage's section (pinned sections measure their spacer,
+  // and how far they stay pinned).
   refresh() {
     const y = window.scrollY;
     for (const s of this.stages) {
-      const el = s.el.parentElement?.classList.contains('pin-spacer') ? s.el.parentElement : s.el;
+      const pinned = s.el.parentElement?.classList.contains('pin-spacer');
+      const el = pinned ? s.el.parentElement : s.el;
       const r = el.getBoundingClientRect();
       s.top = r.top + y;
       s.height = r.height;
+      s.pinLength = pinned ? Math.max(0, r.height - s.el.offsetHeight) : 0;
     }
   }
 
@@ -218,9 +263,11 @@ export class World {
     const vh = window.innerHeight;
     c.t = time;
     c.p = clamp((window.scrollY + vh - stage.top) / (stage.height + vh));
+    // Progress through the pinned stretch; unpinned, the middle of the section's passage.
+    c.pin = stage.pinLength > 1 ? clamp((window.scrollY - stage.top) / stage.pinLength) : clamp((c.p - 0.25) / 0.5);
     c.slot = null;
-    if (stage.name === 'portrait' && this.slotEl) {
-      const r = this.slotEl.getBoundingClientRect();
+    if (stage.slotEl) {
+      const r = stage.slotEl.getBoundingClientRect();
       if (r.height > 0) {
         c.slot = {
           x: (r.left + r.width / 2 - this.W / 2) * this.wpp,
@@ -237,6 +284,7 @@ export class World {
     this.quat.setFromEuler(o.rotation);
     this.scaleVec.set(o.scale, o.scale, o.scale * o.depth);
     stage.matrix.compose(o.position, this.quat, this.scaleVec);
+    if (stage.cfg.lucid) stage.cfg.lucid(c, stage.lucid);
   }
 
   intro() {
@@ -260,6 +308,28 @@ export class World {
     this.pulseLevel = Math.max(this.pulseLevel, strength);
   }
 
+  // Light a point of a formation (local space); the glow glides there.
+  spotlight(name, point, amount = 1) {
+    for (const s of this.stages) if (s.name === name) s.spotTo.set(point[0], point[1], point[2], amount);
+  }
+
+  // Run `fn` after every rendered frame (for DOM that follows the formations).
+  afterFrame(fn) {
+    this.frameListeners.add(fn);
+    return () => this.frameListeners.delete(fn);
+  }
+
+  // Where a point in a formation's local space appears on screen, in CSS pixels.
+  // Only current while that formation is on stage. Returns null if it isn't.
+  project(name, local, out = { x: 0, y: 0 }) {
+    const stage = this.stages.find((s) => s.name === name);
+    if (!stage || (stage !== this.stageA && stage !== this.stageB)) return null;
+    const v = this.projected.set(local[0], local[1], local[2]).applyMatrix4(stage.matrix).project(this.camera);
+    out.x = ((v.x + 1) / 2) * this.W;
+    out.y = ((1 - v.y) / 2) * this.H;
+    return out;
+  }
+
   update(delta) {
     const dt = Math.min(Math.max(delta, 1 / 240), 1 / 30);
     this.clock += dt;
@@ -280,6 +350,8 @@ export class World {
     }
     const A = stages[a];
     const B = stages[k];
+    this.stageA = A;
+    this.stageB = B;
     const weight = (i) => (i < 0 ? 0 : (a === i ? 1 - morph : 0) + (k === i && a !== k ? morph : 0));
     const wPortrait = weight(this.portraitIndex);
     const wLab = weight(this.labIndex);
@@ -293,6 +365,10 @@ export class World {
     this.particles.setFormations(a, k);
     sim.uPlaceA.value.copy(A.matrix);
     sim.uPlaceB.value.copy(B.matrix);
+    sim.uLucidA.value.copy(A.lucid);
+    sim.uLucidB.value.copy(B.lucid);
+    sim.uLucidA.value.z *= this.lens;
+    sim.uLucidB.value.z *= this.lens;
     sim.uSwirlA.value = A.cfg.swirl;
     sim.uSwirlB.value = B.cfg.swirl;
     sim.uMorph.value = morph;
@@ -305,6 +381,7 @@ export class World {
     sim.uNoise.value = mix('noise') * (this.reduced ? 0.3 : 1);
     sim.uNoiseScale.value = mix('noiseScale');
     sim.uProbeRadius.value = mix('probeRadius');
+    sim.uProbe.value *= mix('probe');
     this.pulseLevel *= Math.exp(-dt * 2.2);
     sim.uPulse.value = this.pulseLevel;
 
@@ -312,6 +389,11 @@ export class World {
     const mobile = this.ctx.mobile;
     const opacity = mobile ? mix('mobileOpacity') : mix('opacity');
     u.uOpacity.value = opacity * (1 - this.reveal * 0.9 * wPortrait) * (1 + this.pulseLevel * 0.35);
+    const glide = ease(5, dt);
+    A.spot.lerp(A.spotTo, glide);
+    if (B !== A) B.spot.lerp(B.spotTo, glide);
+    u.uSpotA.value.copy(A.spot);
+    u.uSpotB.value.copy(B.spot);
     u.uSize.value = mix('size');
     u.uHeat.value = mix('heat');
 
@@ -321,6 +403,7 @@ export class World {
     if (wLab > 0) t.uPlace.value.copy(stages[this.labIndex].matrix);
 
     this.dust.uniforms.uTime.value = time;
+    this.updateScan(A, B, morph, time);
 
     // A slow drift of the camera with the pointer; held still while the portrait is up,
     // so the particle face stays registered with the photo slot.
@@ -329,8 +412,29 @@ export class World {
     this.camera.lookAt(0, 0, 0);
 
     this.particles.step(time, dt);
-    this.renderer.render(this.scene, this.camera);
+    if (this.glow) this.glow.render(this.scene, this.camera);
+    else this.renderer.render(this.scene, this.camera);
+    this.frameListeners.forEach((fn) => fn(this));
     this.watchPerformance(delta);
+  }
+
+  // The scanner rides the mind's scan level while an audit is under way.
+  updateScan(A, B, morph, time) {
+    if (!this.scan) return;
+    const L = A.cfg.lucid ? A : B.cfg.lucid ? B : null;
+    const level = L?.lucid.x ?? 9;
+    const from = F.MIND.scanFrom + 0.1;
+    const to = F.MIND.scanTo - 0.1;
+    const w = !L ? 0 : A === B ? 1 : L === A ? 1 - morph : morph;
+    const fade = clamp((from - level) / 0.25) * clamp((level - to) / 0.25);
+    const opacity = this.reduced ? 0 : w * fade;
+    this.scan.object.visible = opacity > 0.001;
+    if (!this.scan.object.visible) return;
+    const u = this.scan.uniforms;
+    u.uOpacity.value = opacity;
+    u.uLevel.value = level;
+    u.uTime.value = time;
+    u.uPlace.value.copy(L.matrix);
   }
 
   updatePointer(dt, wPortrait) {
@@ -358,6 +462,7 @@ export class World {
     const speed = v.length();
     const target = p.active && !this.reduced ? Math.min(1, 0.3 + speed * 0.11) : 0;
     this.probe += (target - this.probe) * ease(8, dt);
+    this.lens += ((p.active && !this.reduced ? 1 : 0) - this.lens) * ease(5, dt);
     this.hold += ((p.down ? 1 : 0) - this.hold) * ease(p.down ? 3.2 : 10, dt);
     this.burst *= Math.exp(-dt * 6);
 

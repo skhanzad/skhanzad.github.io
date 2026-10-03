@@ -4,7 +4,7 @@ export default function Research() {
       <div className="research__pin" data-research-pin="">
         <div className="research__track" data-research-track="">
           <header className="research__intro">
-            <p className="label"><span>04</span>Research</p>
+            <p className="label"><span>05</span>Research</p>
             <h2 className="display" data-split="words">Instruments for machine <em>accountability</em>.</h2>
             <p className="research__lede">7 peer-reviewed papers and 6 preprints across agents, causality, search and security. Each project below has a live simulation of its method: open one and turn the dials.</p>
             <p className="research__drag" aria-hidden="true"><span>Scroll to explore</span><i></i></p>
