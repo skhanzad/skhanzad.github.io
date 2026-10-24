@@ -34,15 +34,15 @@ export default function SiteChrome() {
           <span className="nav__name">Sourena Khanzadeh</span>
         </a>
         <nav className="nav__links" aria-label="Sections">
-          <a href="#trust">Trust</a>
+          <a href="#trust">AI</a>
           <a href="#thread">Expertise</a>
-          <a href="#architect">Architect</a>
+          <a href="#architect">Engineer</a>
           <a href="#path">Path</a>
           <a href="#research">Research</a>
           <a href="#lab">Lab</a>
           <a href="#contact">Contact</a>
         </nav>
-        <a className="nav__cta" href="resume.pdf" download="Sourena-Khanzadeh-Resume.pdf" data-magnetic="">Résumé <span aria-hidden="true">↓</span></a>
+        <a className="nav__cta" href="assets/resume.pdf" download="Sourena-Khanzadeh-Resume.pdf" data-magnetic="">Résumé <span aria-hidden="true">↓</span></a>
         <button className="nav__menu" type="button" aria-expanded="false" aria-controls="menu" data-menu-toggle="">
           <span className="nav__menu-label">Menu</span><span className="nav__menu-icon" aria-hidden="true"></span>
         </button>
@@ -51,9 +51,9 @@ export default function SiteChrome() {
       <div className="menu" id="menu" data-menu="" hidden>
         <nav aria-label="Menu">
           <ol>
-            <li><a href="#trust"><span>01</span>Trust by design</a></li>
+            <li><a href="#trust"><span>01</span>AI engineering</a></li>
             <li><a href="#thread"><span>02</span>Expertise</a></li>
-            <li><a href="#architect"><span>03</span>The Architect</a></li>
+            <li><a href="#architect"><span>03</span>The Engineer</a></li>
             <li><a href="#path"><span>04</span>The Path</a></li>
             <li><a href="#research"><span>05</span>Research</a></li>
             <li><a href="#lab"><span>06</span>The Lab</a></li>
@@ -61,16 +61,16 @@ export default function SiteChrome() {
             <li><a href="#contact"><span>08</span>Contact</a></li>
           </ol>
         </nav>
-        <a className="menu__resume" href="resume.pdf" download="Sourena-Khanzadeh-Resume.pdf">Download résumé (PDF)</a>
+        <a className="menu__resume" href="assets/resume.pdf" download="Sourena-Khanzadeh-Resume.pdf">Download résumé (PDF)</a>
       </div>
 
       <nav className="rail" aria-label="Chapters" data-rail="">
         <div className="rail__line"><span className="rail__fill" data-rail-fill=""></span></div>
         <ol>
           <li><a href="#top" data-rail-link="top"><b>00</b><span>Entrance</span></a></li>
-          <li><a href="#trust" data-rail-link="trust"><b>01</b><span>Trust by design</span></a></li>
+          <li><a href="#trust" data-rail-link="trust"><b>01</b><span>AI engineering</span></a></li>
           <li><a href="#thread" data-rail-link="thread"><b>02</b><span>Expertise</span></a></li>
-          <li><a href="#architect" data-rail-link="architect"><b>03</b><span>The Architect</span></a></li>
+          <li><a href="#architect" data-rail-link="architect"><b>03</b><span>The Engineer</span></a></li>
           <li><a href="#path" data-rail-link="path"><b>04</b><span>The Path</span></a></li>
           <li><a href="#research" data-rail-link="research"><b>05</b><span>Research</span></a></li>
           <li><a href="#lab" data-rail-link="lab"><b>06</b><span>The Lab</span></a></li>

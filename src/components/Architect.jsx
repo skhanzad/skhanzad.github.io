@@ -1,12 +1,12 @@
 export default function Architect() {
   return (
     <section className="about section" id="architect" data-formation="portrait" data-chapter="architect">
-      <p className="label about__label"><span>03</span>The Architect</p>
+      <p className="label about__label"><span>03</span>The Engineer</p>
       <div className="about__grid">
         <div className="about__copy">
-          <h2 className="display" data-split="words">Building secure systems and <em>reasoning agents</em>.</h2>
-          <p className="lede" data-reveal="">I’m a Computer Science Ph.D. and AI research engineer working across distributed systems, cybersecurity, blockchain, AI reasoning and multi-agent coordination.</p>
-          <p data-reveal="">My work moves between industry, government and academia: agentic systems at Flybits, perspective-aware agents with MIT Media Lab’s sAIpien, evaluation research at Toronto Metropolitan University, and knowledge-informed anomaly detection at the National Research Council Canada.</p>
+          <h2 className="display" data-split="words">Building agents that <em>reason</em> and hold up.</h2>
+          <p className="lede" data-reveal="">I’m an AI engineer with a Ph.D. in Computer Science. I build agentic systems with retrieval-augmented generation, tool calling, multi-agent orchestration and memory, and I evaluate them so they can be relied on.</p>
+          <p data-reveal="">I turn research into working prototypes: agentic systems at Flybits, perspective-aware agents with privacy-preserving memory at MIT Media Lab’s sAIpien, agent evaluation at Toronto Metropolitan University, and machine learning for intrusion detection at the National Research Council Canada.</p>
 
           <dl className="stats" data-reveal="">
             <div className="stats__item"><dt>Peer-reviewed papers</dt><dd data-count="7">7</dd></div>

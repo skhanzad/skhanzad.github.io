@@ -14,7 +14,7 @@ const MEASURED = 0.9;
 
 const add3 = (a, d, s) => a.map((v, i) => v + d[i] * s);
 
-// "Trust by design": the title defined a word at a time while the particle mind
+// "AI engineering": the title defined a sense at a time while the particle mind
 // behind it is audited, then housed in a glass box. The section pins; its scroll
 // drives the words here and, through the World, the mind itself.
 export function initTrust({ world, reduced, scope }) {
@@ -26,7 +26,6 @@ export function initTrust({ world, reduced, scope }) {
   const bars = gauges.map((g) => g.querySelector('.trust__gauge-bar i'));
   const readout = section.querySelector('[data-trust-readout]');
   const initialReadout = readout.textContent;
-  const rail = document.querySelector('[data-rail]');
   const lens = section.querySelector('.trust__lens');
   const hint = section.querySelector('.trust__hint');
   const lensText = lens.dataset.cursorText;
@@ -85,8 +84,6 @@ export function initTrust({ world, reduced, scope }) {
         invalidateOnRefresh: true,
         onToggle: (self) => {
           stage.classList.toggle('is-live', self.isActive);
-          // The chapter is immersive: the rail keeps its dots but drops its label.
-          rail?.classList.toggle('is-quiet', self.isActive);
         },
         onUpdate: (self) => {
           const p = self.progress;
@@ -130,7 +127,6 @@ export function initTrust({ world, reduced, scope }) {
       lens.dataset.cursorText = lensText;
       section.classList.remove('is-pinned');
       stage.classList.remove('is-live');
-      rail?.classList.remove('is-quiet');
       gauges.forEach((g) => g.classList.remove('is-active'));
       words.forEach((w) => w.revert());
     };

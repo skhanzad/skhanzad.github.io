@@ -11,14 +11,14 @@ export default function Hero() {
           <span className="line">Sourena</span>
           <span className="line line--indent">Khanzadeh</span>
         </h1>
-        <p className="hero__role" data-hero-fade=""><span className="rule" aria-hidden="true"></span><span data-scramble="">Cognitive Trust Architect</span></p>
-        <p className="hero__tagline" data-hero-fade="">I build secure <em>distributed systems</em> and AI agents that <em>reason</em> and <em>work together</em>.</p>
+        <p className="hero__role" data-hero-fade=""><span className="rule" aria-hidden="true"></span><span data-scramble="">AI Engineer</span></p>
+        <p className="hero__tagline" data-hero-fade="">I build AI agents that <em>reason</em>, <em>use tools</em> and <em>work together</em>, and the evaluations that show they can be trusted.</p>
         <ul className="hero__pillars" data-hero-fade="" aria-label="Focus areas">
-          <li>Distributed Systems</li>
-          <li>Cybersecurity</li>
-          <li>Blockchain</li>
-          <li>AI Reasoning</li>
-          <li>Multi-Agent Coordination</li>
+          <li>Agentic Systems</li>
+          <li>RAG &amp; Tool Calling</li>
+          <li>Multi-Agent Orchestration</li>
+          <li>Fine-tuning</li>
+          <li>Evaluation &amp; Guardrails</li>
         </ul>
       </div>
 

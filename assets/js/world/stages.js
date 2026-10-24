@@ -189,8 +189,8 @@ export const STAGES = {
         o.scale = (c.w * 0.44) / 1.6;
         o.position.set(0, 0, -2);
       } else {
-        o.scale = (c.h * 0.31) / 1.6;
-        o.position.set(c.w * 0.3, 0, 0);
+        o.scale = (c.h * 0.27) / 1.6;
+        o.position.set(c.w * 0.33, 0, 0);
       }
       o.rotation.set(0.55 + c.p * 1.1 + c.my * 0.1, c.t * 0.07 + c.p * 2.2 + c.mx * 0.15, 0.2);
     },

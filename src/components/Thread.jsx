@@ -2,29 +2,29 @@ import ExpertiseChart from './ExpertiseChart.jsx';
 
 const domains = [
   {
-    name: 'Distributed systems',
-    description: 'Connect services, APIs and data stores into reproducible workflows, with attention to orchestration and recovery from failure.',
-    skills: ['API integration', 'Docker & Kubernetes', 'PostgreSQL & Redis'],
+    name: 'Agent systems',
+    description: 'Build agents that plan and carry out tasks by calling tools and APIs, with prompts and decision traces designed so every step can be audited.',
+    skills: ['Tool calling', 'Prompt engineering', 'Planning & search'],
   },
   {
-    name: 'Cybersecurity',
-    description: 'Apply domain knowledge and machine learning to anomaly detection, imbalanced telemetry and cyberattack detection.',
-    skills: ['Anomaly detection', 'Threat modeling', 'Privacy controls'],
+    name: 'Retrieval & memory',
+    description: 'Ground answers in the right context with retrieval-augmented generation, context management, privacy-preserving memory and adaptive knowledge graphs.',
+    skills: ['RAG', 'Context & memory', 'Knowledge graphs'],
   },
   {
-    name: 'Blockchain',
-    description: 'Improve smart-contract efficiency with static analysis, LLM-assisted rewrites and differential fuzzing to check behavior.',
-    skills: ['Smart contracts', 'Gas optimization', 'Differential fuzzing'],
-  },
-  {
-    name: 'AI reasoning',
-    description: 'Build and evaluate agents that combine retrieval, heuristic planning and symbolic constraints, using execution traces and counterfactual replay.',
-    skills: ['Causal evaluation', 'Planning & search', 'Grounded retrieval'],
-  },
-  {
-    name: 'Multi-agent coordination',
-    description: 'Coordinate planning, coding, debugging and review across agents, with tool orchestration and feedback from execution.',
+    name: 'Multi-agent orchestration',
+    description: 'Coordinate planning, coding, debugging and review across agents, using feedback from execution and recovery from tool failures.',
     skills: ['Role coordination', 'Tool orchestration', 'Execution feedback'],
+  },
+  {
+    name: 'Evaluation & guardrails',
+    description: 'Measure task completion, groundedness and faithfulness, replay counterfactuals to find failures, and add guardrails that keep agents within bounds.',
+    skills: ['Failure analysis', 'Causal evaluation', 'Guardrails'],
+  },
+  {
+    name: 'Models & infrastructure',
+    description: 'Adapt and ship models with fine-tuning, quantization and reinforcement learning, packaged with Docker and CI/CD so experiments and deployments are repeatable.',
+    skills: ['Fine-tuning & quantization', 'Reinforcement learning', 'Docker & CI/CD'],
   },
 ];
 
@@ -34,8 +34,8 @@ export default function Thread() {
       <div className="expertise__inner">
         <p className="label"><span>02</span>Expertise</p>
         <header className="expertise__head">
-          <h2 className="display" id="expertise-title" data-split="words">Engineering across systems, security and <em>AI</em>.</h2>
-          <p className="expertise__intro" data-reveal="">My work connects software infrastructure, security research and intelligent agents. These are the skills I bring from research into engineering.</p>
+          <h2 className="display" id="expertise-title" data-split="words">Engineering AI that reasons, retrieves and <em>acts</em>.</h2>
+          <p className="expertise__intro" data-reveal="">These are the parts of an AI system I design, build and evaluate, taking each one from research to working software.</p>
         </header>
 
         <ExpertiseChart domains={domains} />

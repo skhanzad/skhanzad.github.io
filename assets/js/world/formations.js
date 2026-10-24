@@ -739,7 +739,7 @@ export function orbit(n, seed = 88) {
 }
 
 /* ------------------------------------------------------------------ */
-/* 9. Mind: the emblem of a Cognitive Trust Architect. A brain with a  */
+/* 9. Mind: the emblem of an AI Engineer. A brain with a  */
 /*    reasoning trace inside it and a haze of uncertainty around it.   */
 /*    `alt` holds the same particles made lucid: the cortex resolved   */
 /*    into contour slices, the trace drawn as one thread, and the haze */

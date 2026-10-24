@@ -30,7 +30,7 @@ export default function ExpertiseChart({ domains }) {
         <figure className="expertise-chart" data-formation-slot="">
           <svg className="expertise-chart__svg" viewBox="0 0 560 560" role="group" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}>
             <title id={`${id}-title`}>Areas of expertise</title>
-            <desc id={`${id}-description`}>Five equally sized segments for distributed systems, cybersecurity, blockchain, AI reasoning and multi-agent coordination. Select a segment to explore its skills.</desc>
+            <desc id={`${id}-description`}>Five equally sized segments for agent systems, retrieval and memory, multi-agent orchestration, evaluation and guardrails, and models and infrastructure. Select a segment to explore its skills.</desc>
             <circle className="expertise-chart__orbit" cx={center} cy={center} r="263" aria-hidden="true" />
             {domains.map(({ name }, index) => {
               const middle = -90 + index * angle;
@@ -60,9 +60,8 @@ export default function ExpertiseChart({ domains }) {
             })}
           </svg>
           <figcaption className="expertise-chart__center">
-            <span>Cognitive </span>
-            <em>Trust </em>
-            <span>Architect</span>
+            <em>AI </em>
+            <span>Engineer</span>
           </figcaption>
         </figure>
         <p className="expertise-chart__hint">Select a segment to explore</p>

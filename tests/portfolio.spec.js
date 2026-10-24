@@ -49,7 +49,7 @@ async function ready(page, path = '/') {
 test('desktop starts, preserves portfolio content, and serves public assets', async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await ready(page, '/?debug');
-  await expect(page).toHaveTitle('Sourena Khanzadeh — Cognitive Trust Architect');
+  await expect(page).toHaveTitle('Sourena Khanzadeh — AI Engineer');
   await expect(page.getByRole('heading', { level: 1, name: 'Sourena Khanzadeh' })).toBeVisible();
   expect(await page.locator('[data-chapter]').evaluateAll((nodes) => nodes.map((node) => node.id))).toEqual(chapters);
   await expect(page.locator('[data-card]')).toHaveCount(8);
@@ -69,7 +69,7 @@ test('desktop starts, preserves portfolio content, and serves public assets', as
   await expect(page.locator('[data-portrait-status]')).toHaveText('withheld');
 
   for (const [path, type] of [
-    ['/resume.pdf', 'application/pdf'],
+    ['/assets/resume.pdf', 'application/pdf'],
     ['/assets/img/portrait-map.png', 'image/png'],
     ['/assets/img/sourena-cut.webp', 'image/webp'],
     ['/assets/img/og.jpg', 'image/jpeg'],
@@ -81,11 +81,11 @@ test('desktop starts, preserves portfolio content, and serves public assets', as
   }
 });
 
-test('the trust chapter defines the title while the mind is audited, then boxed', async ({ page }) => {
+test('the AI engineering chapter defines the title while the mind is audited, then boxed', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await ready(page, '/?debug');
-  await expect(page.getByRole('heading', { level: 2, name: 'Cognitive trust architect' })).toBeAttached();
-  await expect(page.locator('[data-trust-act] h3')).toHaveText(['Cognitive', 'Trust', 'Architect']);
+  await expect(page.getByRole('heading', { level: 2, name: 'AI engineer' })).toBeAttached();
+  await expect(page.locator('[data-trust-act] h3')).toHaveText(['Reasoning', 'Evaluation', 'Engineering']);
 
   const pin = await page.evaluate(() => {
     const section = document.querySelector('#trust');

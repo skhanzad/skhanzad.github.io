@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Sourena Khanzadeh — Cognitive Trust Architect
+   Sourena Khanzadeh — AI Engineer
    ========================================================================== */
 
 :root {
@@ -641,22 +641,15 @@ html:not(.js) .loader {
     transform 0.4s var(--ease);
 }
 
+/* Labels show only on hover: an always-on active label would sit over the content. */
 .rail:hover a b,
-.rail:hover a span,
-.rail a.is-active b,
-.rail a.is-active span {
+.rail:hover a span {
   opacity: 1;
   transform: none;
 }
 
 .rail a.is-active {
   color: var(--cream);
-}
-
-.rail.is-quiet:not(:hover) a.is-active b,
-.rail.is-quiet:not(:hover) a.is-active span {
-  opacity: 0;
-  transform: translateX(6px);
 }
 
 .rail a.is-active::after {

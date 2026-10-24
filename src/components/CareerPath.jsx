@@ -19,6 +19,7 @@ export default function CareerPath() {
               <li>Build agents that plan and execute tasks across internal and partner APIs, with decision traces that support end-to-end audits.</li>
               <li>Ground responses in structured customer-context graphs, combining retrieval and learned models with symbolic constraints.</li>
               <li>Evaluate task completion, groundedness, faithfulness and recovery from tool failures, and use the results to tune model routing for capability, latency and cost.</li>
+              <li>Turn AI research into technical prototypes, research publications and R&amp;D grant proposals.</li>
             </ul>
           </div>
         </article>
@@ -30,7 +31,8 @@ export default function CareerPath() {
             <h3 className="role__title">AI Research Engineer, sAIpien</h3>
             <p className="role__org">MIT Media Lab <span>Part-time research affiliation</span></p>
             <ul>
-              <li>Prototype perspective-aware agents and private long-term memory using adaptive knowledge graphs (Chronicles), and contribute to HCI² benchmarks for transparency and human oversight.</li>
+              <li>Build perspective-aware agents with privacy-preserving memory and adaptive knowledge graphs (Chronicles).</li>
+              <li>Build evaluation benchmarks for agent transparency and human oversight, and prototype local AI agents for knowledge sharing and task delegation.</li>
             </ul>
           </div>
         </article>
@@ -54,7 +56,7 @@ export default function CareerPath() {
             <h3 className="role__title">Machine Learning Engineer (Graduate Research)</h3>
             <p className="role__org">Toronto Metropolitan University <span>Toronto</span></p>
             <ul>
-              <li>Developed systems for multi-agent coordination, heuristic planning, reinforcement learning and synthetic-data generation; co-authored research at AAAI 2026 and Canadian AI 2024.</li>
+              <li>Developed systems for multi-agent coordination, heuristic planning, reinforcement learning and synthetic-data generation; contributed to 7 research publications, including AAAI 2026 and Canadian AI 2024.</li>
               <li>Built training and inference pipelines with PyTorch, Hugging Face, scikit-learn and XGBoost, using Docker and GitHub Actions to make experiments repeatable.</li>
             </ul>
           </div>
@@ -67,7 +69,7 @@ export default function CareerPath() {
             <h3 className="role__title">ML Engineer / Research Scientist Intern</h3>
             <p className="role__org">National Research Council Canada <span>Toronto</span></p>
             <ul>
-              <li>Developed knowledge-informed anomaly-detection prototypes for imbalanced telemetry, using domain features to address limited labelled data.</li>
+              <li>Built and evaluated machine-learning models for intrusion detection and threat identification, using domain knowledge to make up for limited labelled data.</li>
               <li>First-authored a journal study of domain knowledge in deep learning for threat defense, and co-authored research on auxiliary knowledge for cyberattack detection.</li>
             </ul>
           </div>

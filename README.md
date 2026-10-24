@@ -1,6 +1,6 @@
 # sourena-khanzadeh.com
 
-Portfolio of Sourena Khanzadeh, Cognitive Trust Architect. Built with React and Vite,
+Portfolio of Sourena Khanzadeh, AI Engineer. Built with React and Vite,
 with a three.js particle world, GSAP animations and interactive research simulations.
 
 ## Run locally
@@ -57,7 +57,7 @@ the trust chapter's pinned acts, research simulations and reduced-motion behavio
 | `assets/js/world/Glow.js` | Bloom around the brightest particles (larger particle budgets only) |
 | `assets/js/ui/` | Scroll reveals, the trust chapter, timeline thread, research gallery, the Lab, nav, cursor |
 | `public/assets/img/` | Portrait, particle map, favicon and social image |
-| `public/resume.pdf` | Downloadable résumé |
+| `public/assets/resume.pdf` | Downloadable résumé |
 | `vite.config.js` | React build and development server settings |
 | `netlify.toml` | Netlify build command, publish directory and Node.js version |
 
@@ -68,17 +68,17 @@ next morphs the particles between them. To reorder sections, move their componen
 An element inside a section marked `data-formation-slot` anchors that section's shape to it and
 carries it along as the page scrolls (the portrait photo, the expertise chart, the toolkit's orrery).
 
-## Trust by design
+## AI engineering
 
-Chapter 01 (`src/components/Trust.jsx`, `assets/js/ui/trust.js`) defines *cognitive trust
-architect* one word at a time while the section stays pinned for 3.2 screens:
+Chapter 01 (`src/components/Trust.jsx`, `assets/js/ui/trust.js`) defines *AI engineer*
+one sense at a time while the section stays pinned for 3.2 screens:
 
-1. **Cognitive.** The hero's labyrinth becomes a particle brain: a folded cortex with synapses
+1. **Reasoning.** The hero's labyrinth becomes a particle brain: a folded cortex with synapses
    firing, wrapped in a haze.
-2. **Trust.** An audit scanner descends through the mind. Above it the cortex resolves into
+2. **Evaluation.** An audit scanner descends through the mind. Above it the cortex resolves into
    contour slices and the reasoning trace (observe → retrieve → explain → answer, as in the Lab)
    is drawn as one thread, with labels pinned to its steps.
-3. **Architect.** The haze condenses into a glass box, drawn edge by edge, whose dimension lines
+3. **Engineering.** The haze condenses into a glass box, drawn edge by edge, whose dimension lines
    are labelled provenance, privacy and verification.
 
 The `mind` formation has a second, *lucid* state (`alt` in `formations.js`). The shaders blend each
